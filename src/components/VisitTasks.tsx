@@ -475,7 +475,7 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
             <div className="grid grid-cols-1 gap-1.5" style={{ color: '#64748B' }}>
               <div className="flex items-center gap-1 truncate"><MapPin className="w-3.5 h-3.5 flex-shrink-0" /> <span className="truncate">{task.location}</span></div>
               <div className="flex items-center gap-1"><Target className="w-3.5 h-3.5 flex-shrink-0" /> {visitCount}次历史拜访</div>
-              <div className="flex items-center gap-1 truncate"><Users className="w-3.5 h-3.5 flex-shrink-0" /> <span className="truncate">{task.contacts[0]?.name || '未分配'} · {task.contacts[0]?.title || '关键联系人'}</span></div>
+              <div className="flex items-center gap-1 truncate"><Users className="w-3.5 h-3.5 flex-shrink-0" /> <span className="truncate">{task.contacts?.[0]?.name || '未分配'} · {task.contacts?.[0]?.title || '关键联系人'}</span></div>
             </div>
           </div>
         </div>
