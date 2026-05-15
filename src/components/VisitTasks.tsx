@@ -186,7 +186,9 @@ function PendingConfirmationSection({ tasks, onConfirm }: { tasks: any[]; onConf
                       {hasOpportunity ? '商机进行中' : '无商机'}
                     </span>
                   </div>
-                  <div className="text-sm mb-1" style={{ color: '#5A5A5A' }}>{task.visitPurpose}</div>
+                  {task.visitPurpose && (
+                    <div className="text-sm mb-1" style={{ color: '#5A5A5A' }}>{task.visitPurpose}</div>
+                  )}
                   <div className="grid grid-cols-2 gap-2 mb-2">
                     <div className="rounded-lg px-2.5 py-2" style={{ backgroundColor: hasOpportunity ? '#F0FDF4' : '#EFF6FF', border: `1px solid ${hasOpportunity ? '#BBF7D0' : '#BFDBFE'}` }}>
                       <div className="text-xs font-semibold mb-1" style={{ color: hasOpportunity ? '#15803D' : '#1D4ED8' }}>
