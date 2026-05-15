@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useAppStore } from '../stores/appStore';
-import { completedVisits, customers } from '../data/mockData';
+import { completedVisits, customers, visitTasks } from '../data/mockData';
 import { TIER_RULES } from '../data/skills';
 import CustomerBadge from './CustomerBadge';
 import { ClipboardList, ChevronDown, Plus, ChevronRight, Building2, MapPin, MoreHorizontal, Calendar, AlertTriangle, Target, Eye, X, Clock, CheckCircle2, UserRound } from 'lucide-react';
@@ -42,7 +42,7 @@ export default function VisitTasks() {
   const [confirmTask, setConfirmTask] = useState<any>(null);
   const [confirmedTaskIds, setConfirmedTaskIds] = useState<string[]>([]);
 
-  const pendingConfirmTasks = filteredTasks.filter(
+  const pendingConfirmTasks = visitTasks.filter(
     t => t.confirmationStatus === 'pending_confirmation' && !confirmedTaskIds.includes(t.id)
   );
   const activeTasks = filteredTasks.filter(
