@@ -62,7 +62,7 @@ export default function AddVisitModal() {
               type="text"
               value={purpose}
               onChange={e => setPurpose(e.target.value)}
-              placeholder="如：Q3设备采购跟进"
+              placeholder="如：采购节奏沟通、技术参数澄清"
               className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 outline-none focus:border-blue-400"
               style={{ color: '#1F2329' }}
             />

@@ -17,6 +17,15 @@ function getDaysSinceLastVisit(customerId: string): number {
   return Math.floor((today.getTime() - new Date(last.visitDate).getTime()) / 86400000);
 }
 
+function getHealthMeta(score: number = 70, trend: 'up' | 'flat' | 'down' = 'flat') {
+  const level = score < 50 ? '危险' : score < 70 ? '预警' : '健康';
+  const color = score < 50 ? '#DC2626' : score < 70 ? '#EA580C' : '#16A34A';
+  const bg = score < 50 ? '#FEF2F2' : score < 70 ? '#FFF7ED' : '#ECFDF5';
+  const trendText = trend === 'up' ? '变好' : trend === 'down' ? '变差' : '持平';
+  const trendArrow = trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→';
+  return { level, color, bg, trendText, trendArrow };
+}
+
 function getOverdueStatus(tier: 'S' | 'A' | 'B' | 'C', daysSince: number) {
   const rule = TIER_RULES.find(r => r.tier === tier);
   if (!rule) return { status: 'normal', label: '', color: '' };
@@ -64,12 +73,13 @@ export default function VisitTasks() {
 
       <div className="bg-white rounded-lg" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
         <div
-          className="flex items-center justify-between px-4 py-3 cursor-pointer select-none border-b border-gray-100"
+          className="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
+          style={{ backgroundColor: '#1F2937' }}
           onClick={() => setCollapsed(!collapsed)}
         >
           <div className="flex items-center gap-2">
             <ClipboardList className="w-4.5 h-4.5" style={{ color: '#1B6EF3' }} />
-            <span className="font-medium text-sm" style={{ color: '#1F2329' }}>本周拜访任务</span>
+            <span className="font-medium text-sm text-white">本周拜访任务</span>
             <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(27,110,243,0.08)', color: '#1B6EF3' }}>{activeTasks.length}</span>
             {overdueCount > 0 && (
               <span className="text-xs px-1.5 py-0.5 rounded-full flex items-center gap-0.5" style={{ backgroundColor: '#FEE2E2', color: '#DC2626' }}>
@@ -81,8 +91,8 @@ export default function VisitTasks() {
             <div className="relative">
               <button
                 onClick={(e) => { e.stopPropagation(); setShowPeriodMenu(!showPeriodMenu); }}
-                className="flex items-center gap-1 text-xs px-2 py-1 rounded hover:bg-gray-100"
-                style={{ color: '#8F959E' }}
+                className="flex items-center gap-1 text-xs px-2 py-1 rounded hover:bg-white/10"
+                style={{ color: '#E5E7EB' }}
               >
                 {taskPeriod} <ChevronDown className="w-3 h-3" />
               </button>
@@ -99,8 +109,8 @@ export default function VisitTasks() {
               )}
             </div>
             <button onClick={(e) => { e.stopPropagation(); setShowAddVisit(true); }}
-              className="w-6 h-6 flex items-center justify-center rounded hover:bg-blue-50 transition-colors"
-              style={{ color: '#1B6EF3' }} title="新建拜访任务">
+              className="w-6 h-6 flex items-center justify-center rounded hover:bg-white/10 transition-colors"
+              style={{ color: '#FFFFFF' }} title="新建拜访任务">
               <Plus className="w-4 h-4" />
             </button>
           </div>
@@ -147,38 +157,65 @@ export default function VisitTasks() {
 
 function PendingConfirmationSection({ tasks, onConfirm }: { tasks: any[]; onConfirm: (task: any) => void }) {
   return (
-    <div className="bg-white rounded-lg border border-amber-200 overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-amber-200">
-        <div className="text-sm font-semibold" style={{ color: '#92400E' }}>🔔 待确认拜访提醒</div>
-        <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#F97316', color: '#fff' }}>{tasks.length}条</span>
+    <div className="bg-white rounded-lg border overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)', borderColor: '#F59E0B' }}>
+      <div className="flex items-center justify-between px-4 py-3" style={{ backgroundColor: '#1F2937' }}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="text-sm font-semibold text-white">🔔 待确认拜访提醒</div>
+          <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}>
+            商机进行中 {tasks.filter(t => t.opportunityIntent !== 'no_opportunity').length}
+          </span>
+          <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8' }}>
+            无商机 {tasks.filter(t => t.opportunityIntent === 'no_opportunity').length}
+          </span>
+        </div>
       </div>
       <div className="divide-y divide-amber-100">
-        {tasks.map(task => (
-          <div key={task.id} className="px-4 py-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="text-sm font-semibold" style={{ color: '#1F2329' }}>{getFullCompanyName(task.customerName)}</span>
-                  <CustomerBadge level={task.customerLevel} />
+        {tasks.map(task => {
+          const hasOpportunity = task.opportunityIntent !== 'no_opportunity';
+          return (
+            <div key={task.id} className="px-4 py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <span className="text-sm font-semibold" style={{ color: '#1F2329' }}>{getFullCompanyName(task.customerName)}</span>
+                    <CustomerBadge level={task.customerLevel} />
+                    <span
+                      className="text-xs px-2 py-0.5 rounded-full font-medium"
+                      style={{ backgroundColor: hasOpportunity ? '#DCFCE7' : '#EFF6FF', color: hasOpportunity ? '#15803D' : '#1D4ED8' }}
+                    >
+                      {hasOpportunity ? '商机进行中' : '无商机'}
+                    </span>
+                  </div>
+                  <div className="text-sm mb-1" style={{ color: '#5A5A5A' }}>{task.visitPurpose}</div>
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div className="rounded-lg px-2.5 py-2" style={{ backgroundColor: hasOpportunity ? '#F0FDF4' : '#EFF6FF', border: `1px solid ${hasOpportunity ? '#BBF7D0' : '#BFDBFE'}` }}>
+                      <div className="text-xs font-semibold mb-1" style={{ color: hasOpportunity ? '#15803D' : '#1D4ED8' }}>
+                        {hasOpportunity ? '拜访目的：推进商机' : '拜访目的：识别机会'}
+                      </div>
+                      <div className="text-xs leading-relaxed" style={{ color: '#475569' }}>{task.visitFocus || task.visitGoal}</div>
+                    </div>
+                    <div className="rounded-lg px-2.5 py-2" style={{ backgroundColor: '#FFFBEB', border: '1px solid #FDE68A' }}>
+                      <div className="text-xs font-semibold mb-1" style={{ color: '#B45309' }}>
+                        {hasOpportunity ? '本次内容：确认节点' : '本次内容：建立关系'}
+                      </div>
+                      <div className="text-xs leading-relaxed" style={{ color: '#475569' }}>{task.expectedCommitment}</div>
+                    </div>
+                  </div>
+                  <div className="text-xs leading-relaxed" style={{ color: '#8F959E' }}>
+                    <span className="font-medium" style={{ color: '#64748B' }}>推荐拜访原因：</span>{task.visitGoal}
+                  </div>
                 </div>
-                <div className="text-sm mb-1" style={{ color: '#5A5A5A' }}>{task.visitPurpose}</div>
-                <div className="text-xs mb-1.5 font-medium" style={{ color: '#B45309' }}>
-                  推荐拜访原因：{getRecommendationReason(task)}
-                </div>
-                <div className="text-xs leading-relaxed" style={{ color: '#8F959E' }}>
-                  <span className="font-medium" style={{ color: '#64748B' }}>拜访目标：</span>{task.visitGoal}
-                </div>
+                <button
+                  className="px-3 py-2 rounded-lg text-sm font-medium text-white flex-shrink-0"
+                  style={{ backgroundColor: '#2563EB' }}
+                  onClick={() => onConfirm(task)}
+                >
+                  确认拜访
+                </button>
               </div>
-              <button
-                className="px-3 py-2 rounded-lg text-sm font-medium text-white flex-shrink-0"
-                style={{ backgroundColor: '#2563EB' }}
-                onClick={() => onConfirm(task)}
-              >
-                确认拜访
-              </button>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -313,10 +350,13 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
     task.customerLevel === 'A' ? '推动方案进入下一步' :
     task.customerLevel === 'B' ? '建立关系并验证需求' :
     '激活信号并重新接触';
-  const opportunityCount = customer ? 1 : 0;
-  const opportunityMain = customer?.currentOpportunity || task.visitPurpose || '待确认商机';
-  const opportunityStage = customer?.opportunityStage || '待确认';
-  const opportunityProgress = customer ? `${customer.opportunityPercent}%` : '待补充';
+  const hasOpportunity = task.opportunityIntent !== 'no_opportunity';
+  const health = getHealthMeta(task.healthScore ?? 70, task.healthTrend ?? 'flat');
+  const opportunityCount = hasOpportunity && customer ? 1 : 0;
+  const opportunityMain = hasOpportunity ? (task.opportunityTopic || customer?.currentOpportunity || task.visitPurpose || '待确认商机') : '暂无商机';
+  const opportunityStage = hasOpportunity ? (customer?.opportunityStage || '待确认') : '机会识别';
+  const opportunityProgress = hasOpportunity && customer ? `${customer.opportunityPercent}%` : '待识别';
+  const opportunityAmount = hasOpportunity && customer ? `¥${customer.opportunityAmount}万` : '-';
 
   const handleMouseEnter = () => { if (hideTimer.current) clearTimeout(hideTimer.current); setShowHistory(true); };
   const handleMouseLeave = () => { hideTimer.current = setTimeout(() => setShowHistory(false), 200); };
@@ -335,9 +375,50 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start gap-2 min-w-0">
             <CustomerBadge level={task.customerLevel} />
-            <div className="min-w-0">
-              <div className="text-base font-semibold truncate" style={{ color: '#1F2329' }}>{getFullCompanyName(task.customerName)}</div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="text-base font-semibold truncate" style={{ color: '#1F2329' }}>{getFullCompanyName(task.customerName)}</div>
+                <span
+                  className="text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0"
+                  style={{ backgroundColor: hasOpportunity ? '#DCFCE7' : '#EFF6FF', color: hasOpportunity ? '#15803D' : '#1D4ED8' }}
+                >
+                  {hasOpportunity ? '商机进行中' : '无商机'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                <span
+                  className="text-[10px] px-2 py-0.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: `${visitTypeColor}16`, color: visitTypeColor }}
+                >
+                  {task.visitType}
+                </span>
+                {overdue.status !== 'normal' ? (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full flex items-center gap-0.5" style={{ backgroundColor: `${overdue.color}16`, color: overdue.color }}>
+                    <AlertTriangle className="w-2.5 h-2.5" />
+                    {overdue.label}
+                  </span>
+                ) : (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: '#ECFDF5', color: '#16A34A' }}>
+                    合规推进
+                  </span>
+                )}
+                <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: '#F1F5F9', color: '#64748B' }}>
+                  {task.dayLabel} · {task.visitTime || '待定'}
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: '#F8FAFC', color: '#64748B' }}>
+                  {daysSince >= 999 ? '未拜访' : `距上次${daysSince}天`}
+                </span>
+              </div>
               <div className="text-xs mt-0.5" style={{ color: '#64748B' }}>{task.contacts[0]?.name || '未分配'} · {task.contacts[0]?.title || '关键联系人'}</div>
+              <div className="mt-2 rounded-lg px-2 py-1.5" style={{ backgroundColor: health.bg, border: `1px solid ${health.color}30` }}>
+                <div className="flex items-center justify-between text-[11px] mb-1">
+                  <span className="font-semibold" style={{ color: health.color }}>客户健康度：{health.level}</span>
+                  <span style={{ color: '#64748B' }}>总分 {task.healthScore ?? 70}/100 | 趋势 {health.trendArrow} {health.trendText}</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-white/70 overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${task.healthScore ?? 70}%`, backgroundColor: health.color }} />
+                </div>
+              </div>
             </div>
           </div>
           <div className="relative flex-shrink-0" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
@@ -350,33 +431,37 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
       </div>
 
       <div className="px-3 py-2.5 space-y-2.5">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span
-            className="text-xs px-2 py-1 rounded-full"
-            style={{ backgroundColor: `${visitTypeColor}16`, color: visitTypeColor }}
-          >
-            {task.visitType}
-          </span>
-          {overdue.status !== 'normal' ? (
-            <span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{ backgroundColor: `${overdue.color}16`, color: overdue.color }}>
-              <AlertTriangle className="w-3 h-3" />
-              {overdue.label}
-            </span>
-          ) : (
-            <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: '#ECFDF5', color: '#16A34A' }}>
-              合规推进
-            </span>
-          )}
-          <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: '#F1F5F9', color: '#64748B' }}>
-            {task.dayLabel} · {task.visitTime || '待定'}
-          </span>
-          <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: '#F8FAFC', color: '#64748B' }}>
-            {daysSince >= 999 ? '未拜访' : `距上次${daysSince}天`}
-          </span>
-        </div>
 
         <div className="grid grid-cols-[1.2fr_0.8fr] gap-3">
           <div className="min-w-0 space-y-2">
+            <div
+              className="rounded-xl px-3 py-2 border"
+              style={{
+                backgroundColor: hasOpportunity ? '#F0FDF4' : '#EFF6FF',
+                borderColor: hasOpportunity ? '#86EFAC' : '#BFDBFE',
+              }}
+            >
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-xs font-semibold" style={{ color: hasOpportunity ? '#15803D' : '#1D4ED8' }}>
+                  {hasOpportunity ? '商机进行中' : '无商机 · 机会识别'}
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: '#FFFFFF', color: hasOpportunity ? '#15803D' : '#1D4ED8' }}>
+                  {opportunityCount > 0 ? `${opportunityCount}个商机` : '线索培育'}
+                </span>
+              </div>
+              {hasOpportunity ? (
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]" style={{ color: '#475569' }}>
+                  <div className="truncate"><span className="font-medium">商机名称：</span>{opportunityMain}</div>
+                  <div><span className="font-medium">商机金额：</span>{opportunityAmount}</div>
+                  <div><span className="font-medium">商机阶段：</span>{opportunityStage} · {opportunityProgress}</div>
+                  <div className="truncate"><span className="font-medium">商机风险：</span>{task.opportunityRisk || '待补充'}</div>
+                </div>
+              ) : (
+                <div className="text-[11px] leading-relaxed" style={{ color: '#475569' }}>
+                  <span className="font-medium">拜访重点：</span>{task.visitFocus || '建立关键联系人关系，摸排产线痛点，判断是否存在机器人工作站切入机会。'}
+                </div>
+              )}
+            </div>
             <div>
               <div className="text-xs mb-0.5" style={{ color: '#8F959E' }}>拜访主题</div>
               <div className="text-sm font-medium leading-snug line-clamp-2" style={{ color: '#1F2329' }}>
@@ -385,10 +470,10 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
             </div>
             <div className="rounded-xl px-3 py-2" style={{ backgroundColor: `${cardBorder}0D`, border: `1px solid ${cardBorder}24` }}>
               <div className="flex items-center gap-1.5 mb-1">
-                <span className="text-xs font-semibold" style={{ color: cardBorder }}>拜访目标</span>
+                <span className="text-xs font-semibold" style={{ color: cardBorder }}>推荐拜访原因</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: '#FFF', color: cardBorder }}>AI建议</span>
               </div>
-              <div className="text-xs leading-relaxed line-clamp-2" style={{ color: '#1F2329' }}>
+              <div className="text-xs leading-relaxed" style={{ color: '#1F2329' }}>
                 {task.visitGoal}
               </div>
             </div>
@@ -400,9 +485,9 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
               <div className="flex items-center gap-1"><Target className="w-3.5 h-3.5 flex-shrink-0" /> {visitCount}次历史拜访</div>
             </div>
             <div className="rounded-xl px-2.5 py-2" style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
-              <div className="font-semibold mb-1" style={{ color: '#1F2329' }}>商机情况</div>
+              <div className="font-semibold mb-1" style={{ color: '#1F2329' }}>{hasOpportunity ? '推进重点' : '线索目标'}</div>
               <div className="leading-relaxed line-clamp-2" style={{ color: '#475569' }}>
-                {opportunityMain}，处于{opportunityStage}阶段，进度{opportunityProgress}。
+                {hasOpportunity ? (task.expectedCommitment || `${opportunityMain}当前处于${opportunityStage}，需确认下一步动作。`) : '本次重点不是推进报价，而是建立关系、摸清产线痛点与潜在切入口。'}
               </div>
             </div>
           </div>
@@ -489,7 +574,7 @@ function VisitDetailModal({ task, onClose, onPrepare }: { task: any; onClose: ()
             <DetailItem label="拜访地点" value={task.location} />
           </div>
 
-          <DetailBlock title="此次拜访目标" content={task.visitGoal} />
+          <DetailBlock title="推荐拜访原因" content={task.visitGoal} />
           <DetailBlock
             title="商机情况"
             content={
@@ -534,6 +619,7 @@ function ConfirmVisitModal({
   const [visitDate, setVisitDate] = useState('');
   const [visitTime, setVisitTime] = useState('');
   const [contactName, setContactName] = useState('');
+  const [opportunityTopic, setOpportunityTopic] = useState('');
   const [visitGoal, setVisitGoal] = useState('');
   const [note, setNote] = useState('');
 
@@ -551,12 +637,14 @@ function ConfirmVisitModal({
       visitTime: visitTime || task.visitTime,
       confirmVisitDate: visitDate,
       confirmVisitContact: contactName,
+      opportunityTopic: opportunityTopic || task.opportunityTopic,
       visitGoal: visitGoal || defaultGoal,
       confirmNote: note,
     });
     setVisitDate('');
     setVisitTime('');
     setContactName('');
+    setOpportunityTopic('');
     setVisitGoal('');
     setNote('');
   };
@@ -611,8 +699,32 @@ function ConfirmVisitModal({
           </div>
 
           <div>
+            <label className="text-xs font-medium block mb-1.5" style={{ color: '#5A5A5A' }}>商机主题</label>
+            <select
+              value={opportunityTopic || task.opportunityTopic || ''}
+              onChange={(e) => setOpportunityTopic(e.target.value)}
+              className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 outline-none focus:border-blue-400"
+            >
+              {task.opportunityIntent === 'no_opportunity' ? (
+                <>
+                  <option value="线索培育/机会识别">线索培育/机会识别</option>
+                  <option value="产线痛点摸排">产线痛点摸排</option>
+                  <option value="关键联系人建联">关键联系人建联</option>
+                </>
+              ) : (
+                <>
+                  <option value={task.opportunityTopic || '当前商机'}>{task.opportunityTopic || '当前商机'}</option>
+                  <option value="注塑取件机器人工作站">注塑取件机器人工作站</option>
+                  <option value="CNC机器人上下料单元">CNC机器人上下料单元</option>
+                  <option value="整线机器人自动化方案">整线机器人自动化方案</option>
+                </>
+              )}
+            </select>
+          </div>
+
+          <div>
             <label className="text-xs font-medium block mb-1.5" style={{ color: '#5A5A5A' }}>
-              拜访目标
+              推荐拜访原因
               <span className="ml-1.5 text-xs font-normal" style={{ color: '#9CA3AF' }}>（AI预填，可修改）</span>
             </label>
             <textarea

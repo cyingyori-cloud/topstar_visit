@@ -54,7 +54,7 @@ export const INDUSTRY_CASES = [
   { industry: '面板制造', product: '注塑自动化', customer: '深圳华星光电', amount: 280, result: '良品率95.2%→98.8%，人员36→12人，回收期14个月' },
   { industry: '3C代工', product: '整线自动化', customer: '深圳富士康科技', amount: 480, result: '人员85→32人，OEE 72%→89%，日产能12000→15000件' },
   { industry: '消费电子', product: 'CNC上下料', customer: '深圳比亚迪电子', amount: 180, result: '人员40→8人，利用率65%→92%，换型2h→30min' },
-  { industry: '家电制造', product: '注塑岛', customer: '珠海格力电器', amount: 400, result: '待交付' },
+  { industry: '家电制造', product: '注塑上下料工作站', customer: '珠海格力电器', amount: 400, result: '商务评估' },
   { industry: '锂电池', product: '注塑+组装', customer: '深圳欣旺达', amount: 120, result: '方案评审中' },
   { industry: 'LED封装', product: '点胶机器人', customer: '中山木林森照明', amount: 60, result: '初步接触' },
   { industry: '声学器件', product: '微组装', customer: '深圳瑞声科技', amount: 90, result: '分期方案沟通中' },

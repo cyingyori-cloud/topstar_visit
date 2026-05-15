@@ -35,6 +35,12 @@ export interface VisitTask {
   dayLabel: string; // '今天', '明天', etc.
   visitGoal: string;
   expectedCommitment: string;
+  opportunityIntent?: 'with_opportunity' | 'no_opportunity';
+  opportunityTopic?: string;
+  opportunityRisk?: string;
+  healthScore?: number;
+  healthTrend?: 'up' | 'flat' | 'down';
+  visitFocus?: string;
 }
 
 export interface CompletedVisit {
@@ -150,7 +156,7 @@ export const customers: Customer[] = [
       { name: '吴总', title: '智能制造部总监', phone: '138****9001' },
       { name: '孙工', title: '注塑车间主任', phone: '139****9002' },
     ],
-    currentOpportunity: '注塑岛',
+    currentOpportunity: '注塑上下料工作站',
     opportunityAmount: 110,
     opportunityStage: '“定”商务',
     opportunityPercent: 95,
@@ -562,16 +568,22 @@ export const visitTasks: VisitTask[] = [
     customerLevel: 'S',
     confirmationStatus: 'pending_confirmation',
     visitType: '高层拜访',
-    visitPurpose: 'Q3设备采购跟进',
+    visitPurpose: '采购节奏与高层决策沟通',
     visitTime: '14:00',
     location: '深圳市光明区华星光电产业园',
     status: 'pending',
     contacts: [{ name: '王总', title: '制造部VP', phone: '138****1001' }],
     lastVisitDate: '2026-05-12',
-    lastVisitSummary: '讨论了Q3设备采购计划，王总对注塑取件节拍数据表示认可',
+    lastVisitSummary: '讨论了设备采购计划，王总对注塑取件节拍数据表示认可',
     dayLabel: '今天',
-    visitGoal: '推动客户高层确认 Q3 采购节奏，并拿到下一轮方案评审会时间。',
+    visitGoal: '距上次拜访仅3天且商务进展顺利，当前处于采购决策窗口期，趁热推动可缩短成交周期。',
     expectedCommitment: '约定设备采购评审会，并明确预算确认节点。',
+    opportunityIntent: 'with_opportunity',
+    opportunityTopic: '注塑取件机器人工作站',
+    opportunityRisk: '预算节点临近，竞品可能切入',
+    healthScore: 42,
+    healthTrend: 'down',
+    visitFocus: '围绕已识别的设备采购商机，确认预算节奏、决策链和方案评审节点。',
   },
   {
     id: 't2',
@@ -580,7 +592,7 @@ export const visitTasks: VisitTask[] = [
     customerLevel: 'A',
     confirmationStatus: 'pending_confirmation',
     visitType: '技术交流',
-    visitPurpose: '自动化产线方案沟通',
+    visitPurpose: 'CNC上下料需求澄清',
     visitTime: '16:00',
     location: '东莞市松山湖科技园',
     status: 'pending',
@@ -588,8 +600,14 @@ export const visitTasks: VisitTask[] = [
     lastVisitDate: '2026-04-20',
     lastVisitSummary: 'CNC自动化需求详细了解，确认5台上下料需求',
     dayLabel: '今天',
-    visitGoal: '确认技术边界和客户当前对节拍、精度、换型效率的核心要求。',
+    visitGoal: '上次拜访已确认5台CNC上下料需求，但技术参数尚未闭环，客户已表达技术评审意愿，需趁热补齐。',
     expectedCommitment: '拿到产线参数和下一次技术评审的参与人名单。',
+    opportunityIntent: 'with_opportunity',
+    opportunityTopic: 'CNC机器人上下料单元',
+    opportunityRisk: '技术参数未闭环，评审参与人不完整',
+    healthScore: 58,
+    healthTrend: 'flat',
+    visitFocus: '围绕已暴露的机器人上下料需求，补齐工艺参数、设备数量、验收指标和技术评审参与人。',
   },
   {
     id: 't3',
@@ -598,7 +616,7 @@ export const visitTasks: VisitTask[] = [
     customerLevel: 'B',
     confirmationStatus: 'pending_confirmation',
     visitType: '初次拜访',
-    visitPurpose: '初次接触',
+    visitPurpose: 'PACK线痛点摸排',
     visitTime: '待定',
     location: '惠州市仲恺高新区德赛工业园',
     status: 'pending',
@@ -606,8 +624,14 @@ export const visitTasks: VisitTask[] = [
     lastVisitDate: '',
     lastVisitSummary: '',
     dayLabel: '今天',
-    visitGoal: '建立首次信任，快速摸清 PACK 线自动化现状和主要痛点。',
+    visitGoal: 'B级客户尚无历史拜访记录，电话接触已表达对PACK线自动化的兴趣，是首次现场建联的好时机。',
     expectedCommitment: '获取关键联系人、产线现状和后续技术交流机会。',
+    opportunityIntent: 'no_opportunity',
+    opportunityTopic: '暂无商机',
+    opportunityRisk: '需求未验证，关键联系人关系较弱',
+    healthScore: 66,
+    healthTrend: 'up',
+    visitFocus: '当前没有明确立项商机，重点是建立联系人关系、判断产线痛点、识别是否存在后续切入机会。',
   },
   {
     id: 't4',
@@ -616,18 +640,23 @@ export const visitTasks: VisitTask[] = [
     customerLevel: 'S',
     confirmationStatus: 'confirmed',
     visitType: '方案汇报',
-    visitPurpose: '注塑岛方案汇报',
+    visitPurpose: '机器人上下料工作站方案沟通',
     visitTime: '10:00',
     location: '珠海市前山格力工业城',
     status: 'pending',
     contacts: [
-      { name: '吴总', title: '智能制造部总监', phone: '138****9001' },
+      { name: '吴总', title: '制造部总监', phone: '138****9001' },
     ],
     lastVisitDate: '2026-05-06',
-    lastVisitSummary: '方案初步获认可，需细化注塑岛布局',
+    lastVisitSummary: '方案方向初步获认可，需补充设备节拍与产线衔接方式',
     dayLabel: '明天',
-    visitGoal: '让客户认可注塑岛总体方案和实施节奏，推动进入商务评估。',
+    visitGoal: '方案方向已获认可，距上次拜访9天，客户处于商务评估关键期，需趁方案热度推进商务落地。',
     expectedCommitment: '获得客户对方案方向的确认，并约定商务评审时间。',
+    opportunityIntent: 'with_opportunity',
+    opportunityTopic: '注塑上下料工作站',
+    opportunityRisk: '商务条款未锁定，节拍数据需客户复核',
+    healthScore: 38,
+    healthTrend: 'down',
   },
   {
     id: 't5',
@@ -636,7 +665,7 @@ export const visitTasks: VisitTask[] = [
     customerLevel: 'B',
     confirmationStatus: 'confirmed',
     visitType: '技术交流',
-    visitPurpose: '点胶方案介绍',
+    visitPurpose: '点胶工艺痛点交流',
     visitTime: '14:30',
     location: '中山市小榄镇木林森产业园',
     status: 'pending',
@@ -644,8 +673,13 @@ export const visitTasks: VisitTask[] = [
     lastVisitDate: '',
     lastVisitSummary: '首次现场拜访',
     dayLabel: '明天',
-    visitGoal: '围绕点胶工艺一致性和节拍问题建立技术认知。',
+    visitGoal: '电话沟通已表达对点胶自动化的兴趣并约了现场拜访，首次上门可快速验证真实需求强度。',
     expectedCommitment: '获取工艺参数与当前点胶痛点的具体数据。',
+    opportunityIntent: 'no_opportunity',
+    opportunityTopic: '暂无商机',
+    opportunityRisk: '需求仍在摸排，尚未形成预算动作',
+    healthScore: 76,
+    healthTrend: 'up',
   },
   {
     id: 't6',
@@ -662,8 +696,13 @@ export const visitTasks: VisitTask[] = [
     lastVisitDate: '2026-05-01',
     lastVisitSummary: '方案已提交，等待内部评审',
     dayLabel: '周四',
-    visitGoal: '确认内部评审进展，找出卡点并判断是否需要补充 ROI 或案例证明。',
+    visitGoal: '方案已提交14天等待评审，A级客户需持续跟进避免商机冷却，需主动了解评审进展并补齐材料。',
     expectedCommitment: '推动客户安排方案复盘会，并确认下一步推进负责人。',
+    opportunityIntent: 'with_opportunity',
+    opportunityTopic: '注塑+组装机器人单元',
+    opportunityRisk: '内部评审周期拉长，ROI材料不充分',
+    healthScore: 61,
+    healthTrend: 'flat',
   },
   {
     id: 't7',
@@ -672,7 +711,7 @@ export const visitTasks: VisitTask[] = [
     customerLevel: 'S',
     confirmationStatus: 'confirmed',
     visitType: '商务谈判',
-    visitPurpose: '整线自动化技术评审',
+    visitPurpose: '整线机器人方案商务沟通',
     visitTime: '09:30',
     location: '深圳市龙华区富士康科技园',
     status: 'pending',
@@ -680,8 +719,13 @@ export const visitTasks: VisitTask[] = [
     lastVisitDate: '2026-05-10',
     lastVisitSummary: '技术方案获初步认可，安排详细评审',
     dayLabel: '周五',
-    visitGoal: '基于技术认可结果，进一步缩小商务条件差距并确认采购节奏。',
+    visitGoal: 'S级客户技术方案已通过评审，距上次拜访仅5天且进展顺利，需趁热收敛商务差距、锁定采购流程。',
     expectedCommitment: '明确价格区间和正式采购流程启动时间。',
+    opportunityIntent: 'with_opportunity',
+    opportunityTopic: '整线机器人自动化方案',
+    opportunityRisk: '价格差距未收敛，采购流程节点待确认',
+    healthScore: 84,
+    healthTrend: 'up',
   },
   {
     id: 't8',
@@ -690,7 +734,7 @@ export const visitTasks: VisitTask[] = [
     customerLevel: 'A',
     confirmationStatus: 'confirmed',
     visitType: '方案汇报',
-    visitPurpose: '注塑取件方案沟通',
+    visitPurpose: '注塑取件机器人方案沟通',
     visitTime: '14:00',
     location: '深圳市坪山区比亚迪工业园',
     status: 'pending',
@@ -698,8 +742,13 @@ export const visitTasks: VisitTask[] = [
     lastVisitDate: '2026-05-09',
     lastVisitSummary: '需补充技术参数',
     dayLabel: '周五',
-    visitGoal: '补齐技术参数后完成方案闭环，避免客户内部推进停滞。',
+    visitGoal: 'A级客户上次拜访确认需补齐技术参数，距上次拜访仅6天，趁客户记忆清晰快速闭环。',
     expectedCommitment: '拿到完整参数清单并约定下次正式方案评审。',
+    opportunityIntent: 'with_opportunity',
+    opportunityTopic: '注塑取件机器人工作站',
+    opportunityRisk: '关键技术参数未补齐，客户内部评审可能延后',
+    healthScore: 72,
+    healthTrend: 'flat',
   },
 ];
 
@@ -709,8 +758,8 @@ export const completedVisits: CompletedVisit[] = [
   { id: 'cv1', customerId: 'c1', customerName: '深圳华星光电', customerLevel: 'S', visitDate: '2026-05-12', summary: '注塑自动化方案技术评审推进', outcome: '王总认可节拍数据，进入商务谈判', nextSteps: '准备商务报价', archived: false },
   { id: 'cv2', customerId: 'c1', customerName: '深圳华星光电', customerLevel: 'S', visitDate: '2026-05-08', summary: '拜访设备部李工了解技术要求', outcome: '获取了详细的技术参数要求', nextSteps: '根据参数要求出具方案', archived: true },
   { id: 'cv3', customerId: 'c2', customerName: '深圳富士康科技', customerLevel: 'S', visitDate: '2026-05-10', summary: '与陈总讨论整线自动化方案细节', outcome: '方案已通过技术评审', nextSteps: '等待采购流程启动', archived: false },
-  { id: 'cv4', customerId: 'c9', customerName: '珠海格力电器', customerLevel: 'S', visitDate: '2026-05-06', summary: '注塑岛方案初步汇报', outcome: '方案获得初步认可', nextSteps: '细化注塑岛布局，安排第二次方案汇报', archived: false },
-  { id: 'cv5', customerId: 'c9', customerName: '珠海格力电器', customerLevel: 'S', visitDate: '2026-04-28', summary: '初次拜访智能制造部', outcome: '了解注塑岛改造需求', nextSteps: '准备注塑岛方案', archived: true },
+  { id: 'cv4', customerId: 'c9', customerName: '珠海格力电器', customerLevel: 'S', visitDate: '2026-05-06', summary: '注塑上下料工作站方案初步沟通', outcome: '方案方向获得初步认可', nextSteps: '细化设备节拍、夹具方式与产线衔接边界，安排第二次方案沟通', archived: false },
+  { id: 'cv5', customerId: 'c9', customerName: '珠海格力电器', customerLevel: 'S', visitDate: '2026-04-28', summary: '初次拜访制造部', outcome: '了解注塑段上下料与人工转运痛点', nextSteps: '准备机器人上下料工作站方案', archived: true },
   // c3 立讯精密（S级）无拜访 → 严重超期
 
   // === A级 ===
@@ -804,7 +853,7 @@ export const knowledgeItems: KnowledgeItem[] = [
     category: '拜访话术',
     content: `**价值呈现话术：**
 
-"注塑车间的自动化改造，核心价值体现在三个方面：
+"注塑车间引入机器人上下料工作站，核心价值体现在三个方面：
 
 1. **人力成本节省**：一套注塑自动化方案可替代3-5名操作工，按年人均成本8万计算，1.5-2年即可回收投资。
 

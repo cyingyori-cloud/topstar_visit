@@ -21,14 +21,14 @@ export default function CoverageRate() {
 
   return (
     <div className="bg-white rounded-lg" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-      <div className="flex items-center justify-between px-4 py-3 cursor-pointer select-none border-b border-gray-100" onClick={() => setCollapsed(!collapsed)}>
+      <div className="flex items-center justify-between px-4 py-3 cursor-pointer select-none" style={{ backgroundColor: '#1F2937' }} onClick={() => setCollapsed(!collapsed)}>
         <div className="flex items-center gap-2">
-          <BarChart3 className="w-4.5 h-4.5" style={{ color: '#1B6EF3' }} />
-          <span className="font-medium text-sm" style={{ color: '#1F2329' }}>拜访覆盖率</span>
+          <BarChart3 className="w-4.5 h-4.5" style={{ color: '#93C5FD' }} />
+          <span className="font-medium text-sm text-white">拜访覆盖率</span>
         </div>
         <div className="relative">
           <button onClick={(e) => { e.stopPropagation(); setShowPeriodMenu(!showPeriodMenu); }}
-            className="flex items-center gap-1 text-xs px-2 py-1 rounded hover:bg-gray-100" style={{ color: '#8F959E' }}>
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded hover:bg-white/10" style={{ color: '#E5E7EB' }}>
             {coveragePeriod} <ChevronDown className="w-3 h-3" />
           </button>
           {showPeriodMenu && (

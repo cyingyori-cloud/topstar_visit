@@ -60,10 +60,10 @@ export default function TopNav() {
                     🔄 切换角色视角
                   </div>
 
-                  {[1, 2, 3].map(level => {
+                  {[3].map(level => {
                     const reps = salesReps.filter(r => r.level === level);
                     if (reps.length === 0) return null;
-                    const levelLabel = level === 1 ? '高层管理' : level === 2 ? '中层管理' : '一线销售';
+                    const levelLabel = '一线销售';
                     const Color = roleColors[level];
                     return (
                       <div key={level}>
