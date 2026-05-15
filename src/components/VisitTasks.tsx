@@ -481,13 +481,26 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
                 {hasOpportunity ? (task.expectedCommitment || `${opportunityMain}当前处于${opportunityStage}，需确认下一步动作。`) : '本次重点不是推进报价，而是建立关系、摸清产线痛点与潜在切入口。'}
               </div>
             </div>
-            <div className="rounded-xl px-2.5 py-2" style={{ backgroundColor: `${cardBorder}0D`, border: `1px solid ${cardBorder}24` }}>
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className="text-xs font-semibold" style={{ color: cardBorder }}>推荐拜访原因</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: '#FFF', color: cardBorder }}>AI建议</span>
+            <div className="grid grid-cols-2 gap-3">
+              {/* 左下：推荐拜访原因 */}
+              <div className="rounded-xl px-2.5 py-2" style={{ backgroundColor: `${cardBorder}0D`, border: `1px solid ${cardBorder}24` }}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-xs font-semibold" style={{ color: cardBorder }}>推荐拜访原因</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: '#FFF', color: cardBorder }}>AI建议</span>
+                </div>
+                <div className="leading-relaxed line-clamp-3" style={{ color: '#1F2329' }}>
+                  {task.visitGoal}
+                </div>
               </div>
-              <div className="leading-relaxed line-clamp-3" style={{ color: '#1F2329' }}>
-                {task.visitGoal}
+
+              {/* 右下：推进重点 */}
+              <div className="rounded-xl px-2.5 py-2 border" style={{ backgroundColor: '#FAFBFC', borderColor: '#E5E7EB' }}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-xs font-semibold" style={{ color: '#6B7280' }}>推进重点</span>
+                </div>
+                <div className="leading-relaxed line-clamp-3" style={{ color: '#4B5563' }}>
+                  {task.visitFocus}
+                </div>
               </div>
             </div>
           </div>
