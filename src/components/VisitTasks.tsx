@@ -3,7 +3,7 @@ import { useAppStore } from '../stores/appStore';
 import { completedVisits, customers, visitTasks } from '../data/mockData';
 import { TIER_RULES } from '../data/skills';
 import CustomerBadge from './CustomerBadge';
-import { ClipboardList, ChevronDown, Plus, ChevronRight, Building2, MapPin, MoreHorizontal, Calendar, AlertTriangle, Target, Eye, X, Clock, CheckCircle2, UserRound } from 'lucide-react';
+import { ClipboardList, ChevronDown, Plus, ChevronRight, Building2, MapPin, MoreHorizontal, Calendar, AlertTriangle, Target, Eye, X, Clock, CheckCircle2, UserRound, Users } from 'lucide-react';
 import { getFullCompanyName } from '../utils/companyNames';
 
 const periods = ['本日', '本周', '本月'];
