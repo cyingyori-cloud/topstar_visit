@@ -74,7 +74,7 @@ export default function VisitTasks() {
       <div className="bg-white rounded-lg" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
       <div
         className="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
-        style={{ backgroundColor: '#2D3A4F' }}
+        style={{ backgroundColor: '#6B7280' }}
         onClick={() => setCollapsed(!collapsed)}
       >
           <div className="flex items-center gap-2">
@@ -158,7 +158,7 @@ export default function VisitTasks() {
 function PendingConfirmationSection({ tasks, onConfirm }: { tasks: any[]; onConfirm: (task: any) => void }) {
   return (
     <div className="bg-white rounded-lg border overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)', borderColor: '#F59E0B' }}>
-      <div className="flex items-center justify-between px-4 py-3" style={{ backgroundColor: '#2D3A4F' }}>
+      <div className="flex items-center justify-between px-4 py-3" style={{ backgroundColor: '#6B7280' }}>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="text-sm font-semibold text-white">🔔 待确认拜访提醒</div>
           <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}>

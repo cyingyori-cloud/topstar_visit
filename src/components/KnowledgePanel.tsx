@@ -23,7 +23,7 @@ export default function KnowledgePanel() {
     <div className="bg-white rounded-lg" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
       <div
         className="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
-        style={{ backgroundColor: '#2D3A4F' }}
+        style={{ backgroundColor: '#6B7280' }}
         onClick={() => setCollapsed(!collapsed)}
       >
         <div className="flex items-center gap-2">
