@@ -450,11 +450,11 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
                 </span>
               </div>
               {hasOpportunity ? (
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]" style={{ color: '#475569' }}>
-                  <div className="truncate"><span className="font-medium">商机名称：</span>{opportunityMain}</div>
-                  <div><span className="font-medium">商机金额：</span>{opportunityAmount}</div>
-                  <div><span className="font-medium">商机阶段：</span>{opportunityStage} · {opportunityProgress}</div>
-                  <div className="truncate"><span className="font-medium">商机风险：</span>{task.opportunityRisk || '待补充'}</div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px] leading-relaxed" style={{ color: '#475569' }}>
+                  <div><span className="font-medium">名称：</span>{opportunityMain}</div>
+                  <div><span className="font-medium">金额：</span>{opportunityAmount}</div>
+                  <div><span className="font-medium">阶段：</span>{opportunityStage} · {opportunityProgress}</div>
+                  <div><span className="font-medium">风险：</span>{task.opportunityRisk || '待补充'}</div>
                 </div>
               ) : (
                 <div className="text-[11px] leading-relaxed" style={{ color: '#475569' }}>
@@ -485,7 +485,7 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
               <span className="text-xs font-semibold" style={{ color: cardBorder }}>推荐拜访原因</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: '#FFF', color: cardBorder }}>AI建议</span>
             </div>
-            <div className="text-xs leading-relaxed line-clamp-3" style={{ color: '#1F2329' }}>
+            <div className="text-xs leading-relaxed" style={{ color: '#1F2329' }}>
               {task.visitGoal}
             </div>
           </div>
@@ -495,7 +495,7 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
             <div className="flex items-center gap-1.5 mb-1">
               <span className="text-xs font-semibold" style={{ color: '#6B7280' }}>{hasOpportunity ? '推进重点' : '线索目标'}</span>
             </div>
-            <div className="text-xs leading-relaxed line-clamp-3" style={{ color: '#4B5563' }}>
+            <div className="text-xs leading-relaxed" style={{ color: '#4B5563' }}>
               {hasOpportunity ? (task.expectedCommitment || `${opportunityMain}当前处于${opportunityStage}，需确认下一步动作。`) : '本次重点不是推进报价，而是建立关系、摸清产线痛点与潜在切入口。'}
             </div>
           </div>
