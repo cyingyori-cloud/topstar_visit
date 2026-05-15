@@ -1,0 +1,20 @@
+{
+  "enabled": false,
+  "name": "topstar-crm",
+  "baseUrl": "https://your-domain.com",
+  "transport": "streamable-http",
+  "mcpPath": "/mcp",
+  "ssePath": "/mcp/sse",
+  "messagesPath": "/mcp/messages",
+  "auth": {
+    "type": "bearer",
+    "token": "replace-me"
+  },
+  "toolMap": {
+    "skill_customer_snapshot": "get_customer_snapshot",
+    "skill_visit_frequency": "get_visit_frequency_status",
+    "skill_industry_cases": "match_industry_cases",
+    "skill_knowledge_lookup": "search_knowledge_base",
+    "skill_pocc_visit_prep": "prepare_visit_pocc"
+  }
+}
