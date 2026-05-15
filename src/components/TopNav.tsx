@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAppStore } from '../stores/appStore';
-import { Factory, Bell, ChevronDown, BarChart3, BookOpen, Users, LayoutDashboard, Crown, Shield, UserCheck } from 'lucide-react';
+import { Factory, Bell, ChevronDown, BarChart3, BookOpen, Users, LayoutDashboard, UserCheck } from 'lucide-react';
 import { salesReps } from '../data/roles';
 
 const navItems = [
@@ -10,24 +10,11 @@ const navItems = [
   { label: '经营复盘', icon: BarChart3 },
 ];
 
-const roleIcons: Record<number, any> = {
-  1: Crown,      // 销售总监
-  2: Shield,     // 区域总监
-  3: UserCheck,  // 销售人员
-};
-
-const roleColors: Record<number, string> = {
-  1: '#F5A623',  // 金色
-  2: '#DC2626',  // 红色
-  3: '#1B6EF3',  // 蓝色
-};
+const roleColor = '#1B6EF3';
 
 export default function TopNav() {
   const { activeNav, setActiveNav, currentRep, switchRep } = useAppStore();
   const [showProfile, setShowProfile] = useState(false);
-
-  const currentIcon = roleIcons[currentRep.level] || UserCheck;
-  const currentColor = roleColors[currentRep.level] || '#1B6EF3';
 
   return (
     <>
@@ -44,11 +31,11 @@ export default function TopNav() {
                 onClick={() => setShowProfile(!showProfile)}
                 className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-all"
               >
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ backgroundColor: currentColor }}>
-                  {(() => { const Icon = currentIcon; return <Icon className="w-4 h-4" />; })()}
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ backgroundColor: roleColor }}>
+                  <UserCheck className="w-4 h-4" />
                 </div>
                 <div className="text-left leading-tight">
-                  <div className="text-xs font-medium" style={{ color: currentColor }}>{currentRep.role}</div>
+                  <div className="text-xs font-medium" style={{ color: roleColor }}>{currentRep.role}</div>
                   <div className="text-sm font-semibold -mt-px" style={{ color: '#1F2329' }}>{currentRep.name}</div>
                 </div>
                 <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#8F959E' }} />
@@ -64,14 +51,14 @@ export default function TopNav() {
                     const reps = salesReps.filter(r => r.level === level);
                     if (reps.length === 0) return null;
                     const levelLabel = '一线销售';
-                    const Color = roleColors[level];
+                    const Color = roleColor;
                     return (
                       <div key={level}>
                         <div className="px-3 py-1.5 text-xs" style={{ backgroundColor: '#F9FAFB', color: '#B0B5BE' }}>
                           {levelLabel}
                         </div>
                         {reps.map(rep => {
-                          const Icon = roleIcons[rep.level] || UserCheck;
+                          const Icon = UserCheck;
                           const isActive = rep.id === currentRep.id;
                           return (
                             <button
