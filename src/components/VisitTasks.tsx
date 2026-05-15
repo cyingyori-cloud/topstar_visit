@@ -411,7 +411,6 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
                   {daysSince >= 999 ? '未拜访' : `距上次${daysSince}天`}
                 </span>
               </div>
-              <div className="text-xs mt-0.5" style={{ color: '#64748B' }}>{task.contacts[0]?.name || '未分配'} · {task.contacts[0]?.title || '关键联系人'}</div>
               <div className="mt-2 rounded-lg px-2 py-1.5" style={{ backgroundColor: health.bg, border: `1px solid ${health.color}30` }}>
                 <div className="flex items-center justify-between text-[11px] mb-1">
                   <span className="font-semibold" style={{ color: health.color }}>客户健康度：{health.level}</span>
@@ -476,6 +475,7 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
             <div className="grid grid-cols-1 gap-1.5" style={{ color: '#64748B' }}>
               <div className="flex items-center gap-1 truncate"><MapPin className="w-3.5 h-3.5 flex-shrink-0" /> <span className="truncate">{task.location}</span></div>
               <div className="flex items-center gap-1"><Target className="w-3.5 h-3.5 flex-shrink-0" /> {visitCount}次历史拜访</div>
+              <div className="flex items-center gap-1 truncate"><Users className="w-3.5 h-3.5 flex-shrink-0" /> <span className="truncate">{task.contacts[0]?.name || '未分配'} · {task.contacts[0]?.title || '关键联系人'}</span></div>
             </div>
           </div>
         </div>
