@@ -554,43 +554,70 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
 function VisitDetailModal({ task, onClose, onPrepare }: { task: any; onClose: () => void; onPrepare: () => void; }) {
   if (!task) return null;
   const customer = customers.find(c => c.id === task.customerId);
-  const opportunityCount = customer ? 1 : 0;
-  const opportunityMain = customer?.currentOpportunity || task.visitPurpose || '待确认商机';
-  const opportunityStage = customer?.opportunityStage || '待确认';
-  const opportunityProgress = customer ? `${customer.opportunityPercent}%` : '待补充';
+  const hasOpportunity = task.opportunityIntent === 'with_opportunity';
+  const opportunityMain = task.opportunityTopic || customer?.currentOpportunity || '暂无明确商机';
+  const opportunityStage = customer?.opportunityStage || (hasOpportunity ? '待推进' : '机会识别');
+  const opportunityProgress = customer ? `${customer.opportunityPercent}%` : (hasOpportunity ? '待补充' : '未进入商机');
+  const contactsText = task.contacts.map((c: any) => `${c.name}（${c.title}）`).join('、');
+  const health = getHealthMeta(task.healthScore || 70, task.healthTrend || 'flat');
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.35)' }} onClick={onClose}>
       <div
-        className="w-[560px] bg-white rounded-2xl shadow-2xl overflow-hidden"
+        className="w-[620px] bg-white rounded-2xl shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div>
-            <div className="text-base font-semibold" style={{ color: '#1F2329' }}>{getFullCompanyName(task.customerName)}</div>
-            <div className="text-xs mt-1" style={{ color: '#8F959E' }}>{task.dayLabel} · {task.visitTime || '待定'}</div>
+            <div className="flex items-center gap-2">
+              <CustomerBadge level={task.customerLevel} />
+              <div className="text-base font-semibold" style={{ color: '#1F2329' }}>{getFullCompanyName(task.customerName)}</div>
+              <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: hasOpportunity ? '#DCFCE7' : '#DBEAFE', color: hasOpportunity ? '#15803D' : '#2563EB' }}>
+                {hasOpportunity ? '商机进行中' : '无商机 · 机会识别'}
+              </span>
+            </div>
+            <div className="text-xs mt-1" style={{ color: '#8F959E' }}>{task.dayLabel} · {task.visitTime || '待定'} · {task.visitType}</div>
           </div>
           <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100">
             <X className="w-4 h-4" style={{ color: '#8F959E' }} />
           </button>
         </div>
 
-        <div className="px-5 py-4 space-y-4">
+        <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <DetailItem label="拜访类型" value={task.visitType} />
             <DetailItem label="拜访主题" value={task.visitPurpose} />
-            <DetailItem label="拜访对象" value={task.contacts.map((c: any) => `${c.name}（${c.title}）`).join('、')} />
+            <DetailItem label="拜访对象" value={contactsText} />
             <DetailItem label="拜访地点" value={task.location} />
+            <DetailItem label="历史拜访" value={`${customer?.visitCount || 0}次历史拜访 · 上次：${task.lastVisitDate || '暂无'}`} />
           </div>
 
-          <DetailBlock title="推荐拜访原因" content={task.visitGoal} />
-          <DetailBlock
-            title="商机情况"
-            content={
-              customer
-                ? `| 项目 | 信息 |\n|------|------|\n| 商机数 | ${opportunityCount}个 |\n| 主商机 | ${opportunityMain} |\n| 阶段 | ${opportunityStage} |\n| 推进重点 | ${task.expectedCommitment} |\n\n当前进度：${opportunityProgress}，建议围绕「${task.visitPurpose}」继续推进。`
-                : `| 项目 | 信息 |\n|------|------|\n| 商机数 | ${opportunityCount}个 |\n| 主商机 | ${opportunityMain} |\n| 阶段 | ${opportunityStage} |\n| 推进重点 | ${task.expectedCommitment} |\n\n当前建议围绕「${task.visitPurpose}」继续推进。`
-            }
-          />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl px-3 py-3" style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+              <div className="text-sm font-semibold mb-2" style={{ color: '#15803D' }}>{hasOpportunity ? '商机信息' : '机会识别'}</div>
+              <div className="space-y-1.5 text-sm" style={{ color: '#334155' }}>
+                <InfoLine label="商机名称" value={opportunityMain} />
+                <InfoLine label="商机阶段" value={opportunityStage} />
+                <InfoLine label="当前进度" value={opportunityProgress} />
+                <InfoLine label="风险提示" value={task.opportunityRisk || '暂无明确风险'} />
+              </div>
+            </div>
+
+            <div className="rounded-xl px-3 py-3" style={{ backgroundColor: health.bg, border: `1px solid ${health.color}30` }}>
+              <div className="text-sm font-semibold mb-2" style={{ color: health.color }}>客户健康度：{health.level}</div>
+              <div className="text-sm mb-2" style={{ color: '#334155' }}>
+                总分 {task.healthScore || 70}/100 · 趋势 {health.trendArrow} {health.trendText}
+              </div>
+              <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#E5E7EB' }}>
+                <div className="h-full rounded-full" style={{ width: `${task.healthScore || 70}%`, backgroundColor: health.color }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <DetailBlock title="推荐拜访原因" content={task.visitGoal} tone="reason" />
+            <DetailBlock title={hasOpportunity ? '推进重点' : '线索目标'} content={hasOpportunity ? (task.expectedCommitment || task.visitFocus) : (task.visitFocus || '建立关系、摸清产线痛点与潜在切入口。')} tone="focus" />
+          </div>
+
           <DetailBlock title="上次拜访情况" content={task.lastVisitSummary || '暂无历史摘要'} />
         </div>
 
@@ -787,13 +814,27 @@ function DetailItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DetailBlock({ title, content }: { title: string; content: string }) {
+function DetailBlock({ title, content, tone = 'default' }: { title: string; content: string; tone?: 'default' | 'reason' | 'focus' }) {
+  const styles = tone === 'reason'
+    ? { bg: '#FFF7ED', border: '#FED7AA', title: '#EA580C' }
+    : tone === 'focus'
+      ? { bg: '#F8FAFC', border: '#E2E8F0', title: '#475569' }
+      : { bg: '#F8FAFC', border: '#E2E8F0', title: '#1F2329' };
   return (
     <div>
-      <div className="text-sm font-semibold mb-1.5" style={{ color: '#1F2329' }}>{title}</div>
-      <div className="text-sm leading-relaxed px-3 py-3 rounded-lg" style={{ backgroundColor: '#F8FAFC', color: '#475569' }}>
+      <div className="text-sm font-semibold mb-1.5" style={{ color: styles.title }}>{title}</div>
+      <div className="text-sm leading-relaxed px-3 py-3 rounded-lg border" style={{ backgroundColor: styles.bg, borderColor: styles.border, color: '#475569' }}>
         {content}
       </div>
+    </div>
+  );
+}
+
+function InfoLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-2">
+      <span className="shrink-0" style={{ color: '#64748B' }}>{label}：</span>
+      <span className="font-medium" style={{ color: '#1F2329' }}>{value}</span>
     </div>
   );
 }
