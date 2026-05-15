@@ -409,7 +409,7 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
         </div>
 
         <div className="flex items-center justify-between gap-3 pt-1 border-t border-gray-100">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+          <div className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
             {(task.customerLevel === 'S'
               ? ['上门', '活动邀约', '高层互动', '年度关怀', '驻场']
               : ['上门', '月度联系', '活动邀约']
@@ -418,13 +418,13 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
               return (
                 <span
                   key={tag}
-                  className="text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap"
+                  className="text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-0.5"
                   style={{
-                    backgroundColor: active ? '#ECFDF5' : '#FFF7ED',
-                    color: active ? '#16A34A' : '#F59E0B',
+                    backgroundColor: active ? '#ECFDF5' : '#F3F4F6',
+                    color: active ? '#16A34A' : '#9CA3AF',
                   }}
                 >
-                  {active ? '✓ ' : '… '}
+                  <CheckCircle2 className="w-3 h-3" style={{ color: active ? '#16A34A' : '#D1D5DB' }} />
                   {tag}
                 </span>
               );

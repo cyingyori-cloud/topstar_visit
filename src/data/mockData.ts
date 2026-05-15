@@ -106,8 +106,8 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: '注塑自动化产线',
     opportunityAmount: 120,
-    opportunityStage: '方案评估',
-    opportunityPercent: 40,
+    opportunityStage: '“获”商机',
+    opportunityPercent: 10,
   },
   {
     id: 'c2',
@@ -121,8 +121,8 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: '整线自动化',
     opportunityAmount: 95,
-    opportunityStage: '技术评审',
-    opportunityPercent: 60,
+    opportunityStage: '“约”高层',
+    opportunityPercent: 80,
   },
   {
     id: 'c3',
@@ -136,8 +136,8 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: 'CNC上下料',
     opportunityAmount: 80,
-    opportunityStage: '需求确认',
-    opportunityPercent: 20,
+    opportunityStage: '“查”信息',
+    opportunityPercent: 10,
   },
   {
     id: 'c9',
@@ -152,8 +152,8 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: '注塑岛',
     opportunityAmount: 110,
-    opportunityStage: '方案评估',
-    opportunityPercent: 45,
+    opportunityStage: '“定”商务',
+    opportunityPercent: 95,
   },
 
   // === A级 · 重点客户（6家）===
@@ -169,7 +169,7 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: '注塑取件',
     opportunityAmount: 55,
-    opportunityStage: '方案沟通',
+    opportunityStage: '“做”客情',
     opportunityPercent: 30,
   },
   {
@@ -184,8 +184,8 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: 'CNC自动化',
     opportunityAmount: 45,
-    opportunityStage: '初步接触',
-    opportunityPercent: 15,
+    opportunityStage: '“收”线索',
+    opportunityPercent: 0,
   },
   {
     id: 'c7',
@@ -199,8 +199,8 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: '注塑+组装',
     opportunityAmount: 60,
-    opportunityStage: '方案评估',
-    opportunityPercent: 35,
+    opportunityStage: '“约”高层',
+    opportunityPercent: 80,
   },
   {
     id: 'c11',
@@ -214,8 +214,8 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: '模组段自动化',
     opportunityAmount: 50,
-    opportunityStage: '需求确认',
-    opportunityPercent: 25,
+    opportunityStage: '“获”商机',
+    opportunityPercent: 10,
   },
   {
     id: 'c12',
@@ -229,8 +229,8 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: '焊接机器人',
     opportunityAmount: 38,
-    opportunityStage: '方案沟通',
-    opportunityPercent: 20,
+    opportunityStage: '“做”客情',
+    opportunityPercent: 30,
   },
   {
     id: 'c13',
@@ -244,8 +244,8 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: '偏光片贴附',
     opportunityAmount: 42,
-    opportunityStage: '初步接触',
-    opportunityPercent: 10,
+    opportunityStage: '“收”线索',
+    opportunityPercent: 0,
   },
 
   // === B级 · 活跃客户（10家）===
@@ -261,8 +261,8 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: 'PACK线',
     opportunityAmount: 22,
-    opportunityStage: '初次接触',
-    opportunityPercent: 10,
+    opportunityStage: '“收”线索',
+    opportunityPercent: 0,
   },
   {
     id: 'c8',
@@ -276,7 +276,7 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: '点胶机器人',
     opportunityAmount: 18,
-    opportunityStage: '初步了解',
+    opportunityStage: '“查”信息',
     opportunityPercent: 10,
   },
   {
@@ -291,8 +291,8 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: '微组装',
     opportunityAmount: 25,
-    opportunityStage: '初步接触',
-    opportunityPercent: 15,
+    opportunityStage: '“获”商机',
+    opportunityPercent: 10,
   },
   {
     id: 'c14',
@@ -306,8 +306,8 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: '电芯分选',
     opportunityAmount: 20,
-    opportunityStage: '初步了解',
-    opportunityPercent: 8,
+    opportunityStage: '“查”信息',
+    opportunityPercent: 10,
   },
   {
     id: 'c15',
@@ -321,8 +321,8 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: '模组检测',
     opportunityAmount: 15,
-    opportunityStage: '初次接触',
-    opportunityPercent: 5,
+    opportunityStage: '“收”线索',
+    opportunityPercent: 0,
   },
   {
     id: 'c16',
@@ -336,8 +336,8 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: '玻璃上下料',
     opportunityAmount: 28,
-    opportunityStage: '方案沟通',
-    opportunityPercent: 18,
+    opportunityStage: '“做”客情',
+    opportunityPercent: 30,
   },
   {
     id: 'c17',
@@ -351,8 +351,8 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: 'CNC自动化',
     opportunityAmount: 16,
-    opportunityStage: '初步了解',
-    opportunityPercent: 8,
+    opportunityStage: '“查”信息',
+    opportunityPercent: 10,
   },
   {
     id: 'c18',
@@ -366,8 +366,8 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: '冲压自动化',
     opportunityAmount: 12,
-    opportunityStage: '初次接触',
-    opportunityPercent: 5,
+    opportunityStage: '“收”线索',
+    opportunityPercent: 0,
   },
   {
     id: 'c19',
@@ -381,8 +381,8 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: '镜头组装',
     opportunityAmount: 14,
-    opportunityStage: '初步了解',
-    opportunityPercent: 6,
+    opportunityStage: '“查”信息',
+    opportunityPercent: 10,
   },
   {
     id: 'c20',
@@ -396,8 +396,8 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: '贴片自动化',
     opportunityAmount: 10,
-    opportunityStage: '初次接触',
-    opportunityPercent: 4,
+    opportunityStage: '“收”线索',
+    opportunityPercent: 0,
   },
 
   // === C级 · 沉睡客户（10家）===

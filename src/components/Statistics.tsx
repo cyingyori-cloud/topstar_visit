@@ -1,7 +1,9 @@
 import { useAppStore } from '../stores/appStore';
 import ChatArea from './ChatArea';
-import { TrendingUp, Users, CheckCircle2, Target, BarChart3, PieChart } from 'lucide-react';
+import { TrendingUp, Users, CheckCircle2, Target, BarChart3, PieChart, ArrowUpRight, ArrowDownRight, AlertTriangle, Calendar, Phone } from 'lucide-react';
 import { getFullCompanyName } from '../utils/companyNames';
+import { TIER_RULES } from '../data/skills';
+import { completedVisits } from '../data/mockData';
 
 const levelColors: Record<string, string> = { S: '#DC2626', A: '#EA580C', B: '#2563EB', C: '#9CA3AF' };
 
@@ -20,16 +22,39 @@ export default function Statistics() {
   // Top customers by opportunity
   const topCustomers = [...filteredCustomers].sort((a, b) => b.opportunityAmount - a.opportunityAmount).slice(0, 5);
 
-  // Stage distribution
-  const stages = ['初步接触', '需求确认', '方案沟通', '方案评估', '技术评审'];
+  // Stage distribution (销售成单路径)
+  const stages = ['"收"线索', '"查"信息', '"获"商机', '"做"客情', '"观"案例', '"报"价值', '"约"高层', '"定"商务', '"签"合同', '"收"全款', '休眠'];
   const stageData = stages.map(s => ({
     stage: s,
-    count: filteredCustomers.filter(c => c.opportunityStage.includes(s.replace('需求确认', '需求确认'))).length,
+    count: filteredCustomers.filter(c => c.opportunityStage === s).length,
   }));
 
   // Bar chart max
   const maxOpp = Math.max(...oppByLevel.map(l => l.amount), 1);
   const maxStage = Math.max(...stageData.map(s => s.count), 1);
+
+  // 超期客户分析
+  const today = new Date();
+  const overdueAnalysis = (['S', 'A', 'B', 'C'] as const).map(level => {
+    const rule = TIER_RULES.find(r => r.tier === level);
+    const customersInLevel = filteredCustomers.filter(c => c.level === level);
+    const overdueCustomers = customersInLevel.filter(c => {
+      const visits = completedVisits.filter(v => v.customerId === c.id);
+      if (visits.length === 0) return true;
+      const lastVisit = visits.sort((a, b) => b.visitDate.localeCompare(a.visitDate))[0];
+      const daysSince = Math.floor((today.getTime() - new Date(lastVisit.visitDate).getTime()) / 86400000);
+      return daysSince > (rule?.overdueDays || 30);
+    });
+    return {
+      level,
+      total: customersInLevel.length,
+      overdue: overdueCustomers.length,
+      overdueAmount: overdueCustomers.reduce((s, c) => s + c.opportunityAmount, 0),
+      overdueDays: rule?.overdueDays || 30,
+    };
+  });
+  const totalOverdue = overdueAnalysis.reduce((s, a) => s + a.overdue, 0);
+  const totalOverdueAmount = overdueAnalysis.reduce((s, a) => s + a.overdueAmount, 0);
 
   return (
     <div className="flex-1 flex overflow-hidden p-4 gap-4">
@@ -44,6 +69,57 @@ export default function Statistics() {
             <KpiCard label="本周任务" value={String(filteredTasks.length)} icon={Target} color="#F5A623" />
             <KpiCard label="已完成拜访" value={String(filteredCompletedVisits.length)} icon={CheckCircle2} color="#7C3AED" />
             <KpiCard label="覆盖率" value={`${filteredCoverage.total > 0 ? Math.round(filteredCoverage.covered / filteredCoverage.total * 100) : 0}%`} icon={BarChart3} color="#DC2626" />
+          </div>
+        </div>
+
+        {/* 核心洞察卡片 */}
+        <div className="bg-white rounded-lg p-4" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="w-4 h-4" style={{ color: '#F5A623' }} />
+            <span className="font-medium text-sm" style={{ color: '#1F2329' }}>本周经营洞察</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {/* 超期客户 */}
+            <div className="rounded-lg p-3" style={{ backgroundColor: '#FEF3C7', border: '1px solid #FDE68A' }}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <Calendar className="w-3.5 h-3.5" style={{ color: '#D97706' }} />
+                <span className="text-xs font-medium" style={{ color: '#92400E' }}>超期客户</span>
+              </div>
+              <div className="text-xl font-bold" style={{ color: '#B45309' }}>{totalOverdue}<span className="text-xs font-normal ml-1">家</span></div>
+              <div className="text-xs mt-1" style={{ color: '#B45309' }}>涉及商机 ¥{totalOverdueAmount}万</div>
+              <div className="flex gap-2 mt-2">
+                {overdueAnalysis.filter(a => a.overdue > 0).map(a => (
+                  <span key={a.level} className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: levelColors[a.level] + '20', color: levelColors[a.level] }}>
+                    {a.level}级 {a.overdue}家
+                  </span>
+                ))}
+              </div>
+            </div>
+            {/* 本周待办 */}
+            <div className="rounded-lg p-3" style={{ backgroundColor: '#DBEAFE', border: '1px solid #93C5FD' }}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <Phone className="w-3.5 h-3.5" style={{ color: '#1D4ED8' }} />
+                <span className="text-xs font-medium" style={{ color: '#1E40AF' }}>本周拜访</span>
+              </div>
+              <div className="text-xl font-bold" style={{ color: '#1D4ED8' }}>{filteredTasks.length}<span className="text-xs font-normal ml-1">个任务</span></div>
+              <div className="text-xs mt-1" style={{ color: '#1E40AF' }}>
+                {filteredTasks.filter(t => t.confirmationStatus === 'pending_confirmation').length} 个待确认
+              </div>
+            </div>
+            {/* 商机推进 */}
+            <div className="rounded-lg p-3" style={{ backgroundColor: '#D1FAE5', border: '1px solid #86EFAC' }}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <ArrowUpRight className="w-3.5 h-3.5" style={{ color: '#15803D' }} />
+                <span className="text-xs font-medium" style={{ color: '#166534' }}>商机推进</span>
+              </div>
+              <div className="text-xl font-bold" style={{ color: '#15803D' }}>
+                {stageData.filter(s => s.stage === '"获"商机' || s.stage === '"约"高层' || s.stage === '"定"商务' || s.stage === '"签"合同').reduce((s, i) => s + i.count, 0)}
+                <span className="text-xs font-normal ml-1">家在推进</span>
+              </div>
+              <div className="text-xs mt-1" style={{ color: '#166534' }}>
+                线索 {stageData.find(s => s.stage === '"收"线索')?.count || 0} 家 · 商机 {stageData.find(s => s.stage === '"获"商机')?.count || 0} 家 · 高层 {stageData.find(s => s.stage === '"约"高层')?.count || 0} 家
+              </div>
+            </div>
           </div>
         </div>
 
