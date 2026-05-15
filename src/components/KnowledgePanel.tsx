@@ -22,18 +22,19 @@ export default function KnowledgePanel() {
   return (
     <div className="bg-white rounded-lg" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
       <div
-        className="flex items-center justify-between px-4 py-3 cursor-pointer select-none border-b border-gray-100"
+        className="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
+        style={{ backgroundColor: '#2D3A4F' }}
         onClick={() => setCollapsed(!collapsed)}
       >
         <div className="flex items-center gap-2">
-          <Lightbulb className="w-4.5 h-4.5" style={{ color: '#F5A623' }} />
-          <span className="font-medium text-sm" style={{ color: '#1F2329' }}>行业知识 & 话术</span>
+          <Lightbulb className="w-4.5 h-4.5" style={{ color: '#FCD34D' }} />
+          <span className="font-medium text-sm text-white">行业知识 & 话术</span>
         </div>
         <button
           onClick={(e) => { e.stopPropagation(); setShowSearch(!showSearch); }}
-          className="p-1 rounded hover:bg-gray-100"
+          className="p-1 rounded hover:bg-white/10"
         >
-          <Search className="w-4 h-4" style={{ color: '#8F959E' }} />
+          <Search className="w-4 h-4" style={{ color: '#CBD5E1' }} />
         </button>
       </div>
 

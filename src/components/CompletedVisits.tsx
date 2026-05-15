@@ -27,10 +27,10 @@ export default function CompletedVisits() {
   return (
     <>
       <div className="bg-white rounded-lg" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-        <div className="flex items-center justify-between px-4 py-3 cursor-pointer select-none border-b border-gray-100" onClick={() => setCollapsed(!collapsed)}>
+        <div className="flex items-center justify-between px-4 py-3 cursor-pointer select-none" style={{ backgroundColor: '#2D3A4F' }} onClick={() => setCollapsed(!collapsed)}>
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4.5 h-4.5" style={{ color: '#52C41A' }} />
-            <span className="font-medium text-sm" style={{ color: '#1F2329' }}>已完成拜访</span>
+            <CheckCircle2 className="w-4.5 h-4.5" style={{ color: '#86EFAC' }} />
+            <span className="font-medium text-sm text-white">已完成拜访</span>
           </div>
           <div className="relative">
             <button onClick={(e) => { e.stopPropagation(); setShowPeriodMenu(!showPeriodMenu); }}

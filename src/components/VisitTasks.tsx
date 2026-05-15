@@ -72,11 +72,11 @@ export default function VisitTasks() {
       )}
 
       <div className="bg-white rounded-lg" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-        <div
-          className="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
-          style={{ backgroundColor: '#1F2937' }}
-          onClick={() => setCollapsed(!collapsed)}
-        >
+      <div
+        className="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
+        style={{ backgroundColor: '#2D3A4F' }}
+        onClick={() => setCollapsed(!collapsed)}
+      >
           <div className="flex items-center gap-2">
             <ClipboardList className="w-4.5 h-4.5" style={{ color: '#1B6EF3' }} />
             <span className="font-medium text-sm text-white">本周拜访任务</span>
@@ -158,7 +158,7 @@ export default function VisitTasks() {
 function PendingConfirmationSection({ tasks, onConfirm }: { tasks: any[]; onConfirm: (task: any) => void }) {
   return (
     <div className="bg-white rounded-lg border overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)', borderColor: '#F59E0B' }}>
-      <div className="flex items-center justify-between px-4 py-3" style={{ backgroundColor: '#1F2937' }}>
+      <div className="flex items-center justify-between px-4 py-3" style={{ backgroundColor: '#2D3A4F' }}>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="text-sm font-semibold text-white">🔔 待确认拜访提醒</div>
           <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}>
