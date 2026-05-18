@@ -1,12 +1,16 @@
 import 'dotenv/config';
 import { createServer } from "node:http";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { basename, join } from "node:path";
 import { RemoteMcpClient, loadMcpConfig } from "./mcp-client.mjs";
 import { buildVisitCoachRuntimeGuide, hasVisitCoachSkillFile, shouldUseVisitCoach } from "./topstar-visit-coach.mjs";
 
 // 加载知识库
 const KNOWLEDGE_DIR = process.env.KNOWLEDGE_DIR || "./knowledge";
+const ARTIFACT_DIR = process.env.ARTIFACT_DIR || "./server/artifacts";
+const PUBLIC_AGENT_BASE_URL = (process.env.PUBLIC_AGENT_BASE_URL || process.env.RENDER_EXTERNAL_URL || "https://topstar-visit.onrender.com").replace(/\/$/, "");
 let KNOWLEDGE_BASE = "";
+let KNOWLEDGE_FILES = [];
 
 function loadKnowledgeBase() {
   try {
@@ -16,10 +20,16 @@ function loadKnowledgeBase() {
       return `=== ${file.replace('.md', '')} ===\n\n${content}`;
     });
     KNOWLEDGE_BASE = contents.join('\n\n');
+    KNOWLEDGE_FILES = files.map(file => ({
+      name: file.replace('.md', ''),
+      filename: file,
+      size: readFileSync(`${KNOWLEDGE_DIR}/${file}`, "utf8").length,
+    }));
     console.log(`[knowledge] Loaded ${files.length} knowledge files, total ${KNOWLEDGE_BASE.length} chars`);
   } catch (err) {
     console.log(`[knowledge] Could not load knowledge base: ${err.message}`);
     KNOWLEDGE_BASE = "";
+    KNOWLEDGE_FILES = [];
   }
 }
 
@@ -620,26 +630,141 @@ function skillCreator(context, args) {
   };
 }
 
+function sanitizeFilename(value, fallback = "topstar-document") {
+  return String(value || fallback)
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80) || fallback;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function formatCurrency(value) {
+  const amount = Number(value || 0);
+  if (!amount) return "暂未明确";
+  return `${amount.toLocaleString("zh-CN")} 元`;
+}
+
+function buildWordSections(business, documentType) {
+  const customer = business.customer || {};
+  const task = business.currentTask || {};
+  const visits = business.recentVisits || [];
+  const primaryContact = Array.isArray(customer.keyContacts) ? customer.keyContacts[0] : null;
+
+  return [
+    {
+      heading: "一、背景摘要",
+      paragraphs: [
+        `客户：${customer.name || "未指定客户"}；行业：${customer.industry || "未明确"}；区域：${customer.region || "未明确"}。`,
+        `文档类型：${documentType || "业务文档"}；销售负责人：${business.rep?.name || "未指定"}。`,
+      ],
+    },
+    {
+      heading: "二、客户现状",
+      paragraphs: [
+        `客户等级：${customer.level || "未明确"}；关键联系人：${primaryContact ? `${primaryContact.name}（${primaryContact.title || "职务未填"}）` : "待补充"}。`,
+        task.lastVisitSummary || customer.recentProgress || "需补充最近一次拜访情况、技术参数、客户反馈和内部决策链信息。",
+      ],
+    },
+    {
+      heading: "三、商机判断",
+      paragraphs: [
+        `当前商机：${customer.currentOpportunity || task.opportunityTopic || "待明确"}。`,
+        `商机阶段：${customer.opportunityStage || "待确认"} ${customer.opportunityPercent ?? "?"}%；预计金额：${formatCurrency(customer.opportunityAmount)}。`,
+        task.opportunityRisk ? `主要风险：${task.opportunityRisk}` : "主要风险：技术参数、评审节奏、预算边界和竞品策略仍需持续确认。",
+      ],
+    },
+    {
+      heading: "四、解决方案建议",
+      paragraphs: [
+        task.visitFocus || "围绕客户当前设备需求和产线痛点，输出设备配置、节拍、稳定性、交付保障和投资回报说明。",
+        task.expectedCommitment || "建议争取客户确认技术评审时间、样板案例参访意愿和下一轮商务沟通窗口。",
+      ],
+    },
+    {
+      heading: "五、行动计划",
+      paragraphs: [
+        `下一步拜访：${task.dayLabel || "待排期"} ${task.visitTime || ""} ${task.location || ""}`.trim(),
+        "内部动作：补齐技术参数、准备案例材料、明确报价策略，并推动技术/产品/交付资源参与关键节点。",
+        visits.length
+          ? `参考历史拜访：${visits.map((visit) => `${visit.visitDate || ""}${visit.summary ? ` ${visit.summary}` : ""}`.trim()).filter(Boolean).slice(0, 3).join("；")}`
+          : "历史拜访：暂无可用记录，建议完成拜访后沉淀纪要。",
+      ],
+    },
+  ];
+}
+
+function renderWordHtml({ title, documentType, business, sections }) {
+  const now = new Date().toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" });
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    body { font-family: "Microsoft YaHei", Arial, sans-serif; color: #1f2937; line-height: 1.65; }
+    h1 { color: #17365d; font-size: 24px; border-bottom: 2px solid #17365d; padding-bottom: 8px; }
+    h2 { color: #24486f; font-size: 17px; margin-top: 22px; }
+    p { font-size: 12pt; margin: 6px 0; }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0 18px; }
+    th, td { border: 1px solid #b8c7d9; padding: 8px; font-size: 11pt; text-align: left; }
+    th { background: #eaf1f8; color: #17365d; }
+    .meta { color: #4b5563; font-size: 10.5pt; margin-bottom: 18px; }
+  </style>
+</head>
+<body>
+  <h1>${escapeHtml(title)}</h1>
+  <p class="meta">生成时间：${escapeHtml(now)}｜文档类型：${escapeHtml(documentType || "Word 文档")}</p>
+  <table>
+    <tr><th>客户</th><td>${escapeHtml(business.customer?.name || "未指定")}</td><th>销售</th><td>${escapeHtml(business.rep?.name || "未指定")}</td></tr>
+    <tr><th>商机</th><td>${escapeHtml(business.customer?.currentOpportunity || business.currentTask?.opportunityTopic || "待明确")}</td><th>阶段</th><td>${escapeHtml(`${business.customer?.opportunityStage || "待确认"} ${business.customer?.opportunityPercent ?? ""}%`)}</td></tr>
+  </table>
+  ${sections.map((section) => `
+    <h2>${escapeHtml(section.heading)}</h2>
+    ${section.paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("\n")}
+  `).join("\n")}
+</body>
+</html>`;
+}
+
+function createWordArtifact({ title, documentType, business, sections }) {
+  mkdirSync(ARTIFACT_DIR, { recursive: true });
+  const filenameBase = sanitizeFilename(title);
+  const filename = `${Date.now()}-${filenameBase}.doc`;
+  const filePath = join(ARTIFACT_DIR, filename);
+  writeFileSync(filePath, renderWordHtml({ title, documentType, business, sections }), "utf8");
+  return {
+    filename,
+    url: `${PUBLIC_AGENT_BASE_URL}/artifacts/${encodeURIComponent(filename)}`,
+    mimeType: "application/msword",
+  };
+}
+
 function wordGenerator(context, args) {
   const business = buildBusinessContext(context, args);
   const customer = business.customer;
   const title = args.topic || `${customer?.name || "客户"}${args.documentType}`;
+  const sections = buildWordSections(business, args.documentType);
+  const artifact = createWordArtifact({ title, documentType: args.documentType, business, sections });
 
   return {
     format: "word",
     documentType: args.documentType,
     title,
     business,
-    sections: [
-      { heading: "一、背景摘要", prompt: "说明客户、行业、当前商机、拜访背景。" },
-      { heading: "二、客户现状", prompt: "整理关键联系人、痛点、设备/产线现状、历史拜访信息。" },
-      { heading: "三、商机判断", prompt: "说明商机名称、阶段、金额、风险和下一步推进节点。" },
-      { heading: "四、解决方案建议", prompt: "输出方案方向、价值点、案例支撑和差异化优势。" },
-      { heading: "五、行动计划", prompt: "列出负责人、时间、客户承诺、内部支持事项。" },
-    ],
+    sections,
+    artifact,
     exportSpec: {
-      suggestedFilename: `${title}.docx`,
-      note: "当前工具返回 Word 内容结构，前端或文件服务接入后可写出 docx。",
+      suggestedFilename: artifact.filename,
+      downloadUrl: artifact.url,
+      note: "已生成可由 Word 打开的 .doc 文件，可点击下载。后续如接入 docx 渲染库可升级为原生 .docx。",
     },
   };
 }
@@ -832,7 +957,8 @@ function instructionsForContext(context) {
     "优先使用 tools 获取真实业务上下文，不要假设客户数据。",
     "回答要贴近一线销售拜访场景，默认使用中文。",
     "如果用户问具体客户、拜访频率、行业案例、话术、POCC 准备，请先调用对应 tool 再回答。",
-    "如果用户要求生成 Word/PDF/PPT/Excel，先调用对应 generator tool 获取结构化内容，再明确说明当前返回的是可导出内容草稿/结构，除非后续文件服务接入，不要声称已生成真实文件。",
+    "如果用户要求生成 Word，先调用 word_generator；如果工具结果包含 exportSpec.downloadUrl 或 artifact.url，必须在回答里给出 Markdown 下载链接，并说明这是可由 Word 打开的 .doc 文件。",
+    "如果用户要求生成 PDF/PPT/Excel，先调用对应 generator tool 获取结构化内容，再明确说明当前返回的是可导出内容草稿/结构，除非工具结果包含真实下载地址，不要声称已生成真实文件。",
     "如果用户要求新增 agent 能力或设计 skill，先调用 skill_creator 输出 skill 规格。",
     "输出风格：先给结论，再给 3-5 条可执行建议；必要时用表格。",
     "不要声称已经写入 CRM 或创建了任务，除非工具结果明确说明已经落库。",
@@ -1510,6 +1636,44 @@ const server = createServer(async (req, res) => {
         mappedTools: Object.keys(MCP_CONFIG.toolMap || {}),
       },
     });
+    return;
+  }
+
+  if (req.method === "GET" && req.url.startsWith("/artifacts/")) {
+    const filename = basename(decodeURIComponent(req.url.slice("/artifacts/".length)));
+    const filePath = join(ARTIFACT_DIR, filename);
+    if (!existsSync(filePath)) {
+      sendJson(res, 404, { error: "Artifact not found" });
+      return;
+    }
+
+    setCors(res);
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/msword; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.end(readFileSync(filePath));
+    return;
+  }
+
+  // 知识库 API
+  if (req.method === "GET" && req.url === "/api/knowledge") {
+    sendJson(res, 200, {
+      files: KNOWLEDGE_FILES,
+    });
+    return;
+  }
+
+  if (req.method === "GET" && req.url?.startsWith("/api/knowledge/")) {
+    const filename = req.url.slice("/api/knowledge/".length);
+    try {
+      const content = readFileSync(`${KNOWLEDGE_DIR}/${decodeURIComponent(filename)}.md`, "utf8");
+      sendJson(res, 200, {
+        name: filename,
+        content,
+      });
+    } catch {
+      sendJson(res, 404, { error: "Knowledge file not found" });
+    }
     return;
   }
 
