@@ -1,257 +1,243 @@
 import { useAppStore } from '../stores/appStore';
 import ChatArea from './ChatArea';
-import { TrendingUp, Users, CheckCircle2, Target, BarChart3, PieChart, ArrowUpRight, ArrowDownRight, AlertTriangle, Calendar, Phone } from 'lucide-react';
+import {
+  AlertTriangle,
+  BarChart3,
+  CheckCircle2,
+  ClipboardList,
+  Layers3,
+  Route,
+  ShieldAlert,
+  Target,
+  TrendingUp,
+  Users,
+} from 'lucide-react';
 import { getFullCompanyName } from '../utils/companyNames';
 import { TIER_RULES } from '../data/skills';
 import { completedVisits } from '../data/mockData';
 
 const levelColors: Record<string, string> = { S: '#DC2626', A: '#EA580C', B: '#16A34A', C: '#7B8794' };
 
+const stageGroups = [
+  { label: '线索/信息', stages: ['"收"线索', '"查"信息'], color: '#1B6EF3' },
+  { label: '商机确认', stages: ['"获"商机', '"做"客情'], color: '#16A34A' },
+  { label: '价值推进', stages: ['"观"案例', '"报"价值', '"约"高层'], color: '#F59E0B' },
+  { label: '商务收口', stages: ['"定"商务', '"签"合同', '"收"全款'], color: '#DC2626' },
+  { label: '休眠', stages: ['休眠'], color: '#7B8794' },
+];
+
+function getDaysSinceLastVisit(customerId: string) {
+  const visits = completedVisits.filter(v => v.customerId === customerId);
+  if (visits.length === 0) return 999;
+  const last = visits.sort((a, b) => b.visitDate.localeCompare(a.visitDate))[0];
+  return Math.floor((new Date().getTime() - new Date(last.visitDate).getTime()) / 86400000);
+}
+
 export default function Statistics() {
-  const { filteredCustomers, filteredTasks, filteredCompletedVisits, filteredCoverage, currentRep } = useAppStore();
+  const {
+    filteredCustomers,
+    filteredTasks,
+    filteredCompletedVisits,
+    filteredCoverage,
+    currentRep,
+    sendMessage,
+  } = useAppStore();
 
-  const totalOpp = filteredCustomers.reduce((s, c) => s + c.opportunityAmount, 0);
+  const totalOpp = filteredCustomers.reduce((sum, customer) => sum + customer.opportunityAmount, 0);
+  const pendingConfirmCount = filteredTasks.filter(task => task.confirmationStatus === 'pending_confirmation').length;
+  const coveredPct = filteredCoverage.total > 0 ? Math.round((filteredCoverage.covered / filteredCoverage.total) * 100) : 0;
+  const advancingCount = filteredCustomers.filter(customer => !customer.opportunityStage.includes('休眠')).length;
 
-  // Opportunity by level
-  const oppByLevel = (['S', 'A', 'B', 'C'] as const).map(level => {
-    const c = filteredCustomers.filter(x => x.level === level);
-    const amount = c.reduce((s, x) => s + x.opportunityAmount, 0);
-    return { level, amount, count: c.length };
-  });
-
-  // Top customers by opportunity
-  const topCustomers = [...filteredCustomers].sort((a, b) => b.opportunityAmount - a.opportunityAmount).slice(0, 5);
-
-  // Stage distribution (销售成单路径)
-  const stages = ['"收"线索', '"查"信息', '"获"商机', '"做"客情', '"观"案例', '"报"价值', '"约"高层', '"定"商务', '"签"合同', '"收"全款', '休眠'];
-  const stageData = stages.map(s => ({
-    stage: s,
-    count: filteredCustomers.filter(c => c.opportunityStage === s).length,
-  }));
-
-  // Bar chart max
-  const maxOpp = Math.max(...oppByLevel.map(l => l.amount), 1);
-  const maxStage = Math.max(...stageData.map(s => s.count), 1);
-
-  // 超期客户分析
-  const today = new Date();
-  const overdueAnalysis = (['S', 'A', 'B', 'C'] as const).map(level => {
-    const rule = TIER_RULES.find(r => r.tier === level);
-    const customersInLevel = filteredCustomers.filter(c => c.level === level);
-    const overdueCustomers = customersInLevel.filter(c => {
-      const visits = completedVisits.filter(v => v.customerId === c.id);
-      if (visits.length === 0) return true;
-      const lastVisit = visits.sort((a, b) => b.visitDate.localeCompare(a.visitDate))[0];
-      const daysSince = Math.floor((today.getTime() - new Date(lastVisit.visitDate).getTime()) / 86400000);
-      return daysSince > (rule?.overdueDays || 30);
-    });
+  const tierReview = (['S', 'A', 'B', 'C'] as const).map(level => {
+    const rule = TIER_RULES.find(item => item.tier === level);
+    const customers = filteredCustomers.filter(customer => customer.level === level);
+    const covered = new Set(filteredCompletedVisits.filter(visit => visit.customerLevel === level).map(visit => visit.customerId)).size;
+    const overdue = customers.filter(customer => getDaysSinceLastVisit(customer.id) > (rule?.overdueDays || 30));
+    const amount = customers.reduce((sum, customer) => sum + customer.opportunityAmount, 0);
+    const coveragePct = customers.length > 0 ? Math.round((covered / customers.length) * 100) : 0;
     return {
       level,
-      total: customersInLevel.length,
-      overdue: overdueCustomers.length,
-      overdueAmount: overdueCustomers.reduce((s, c) => s + c.opportunityAmount, 0),
-      overdueDays: rule?.overdueDays || 30,
+      label: rule?.label || '',
+      managementMethod: rule?.managementMethod || '',
+      estimatedShare: rule?.estimatedShare || '',
+      total: customers.length,
+      covered,
+      overdue: overdue.length,
+      amount,
+      coveragePct,
+      color: rule?.color || levelColors[level],
     };
   });
-  const totalOverdue = overdueAnalysis.reduce((s, a) => s + a.overdue, 0);
-  const totalOverdueAmount = overdueAnalysis.reduce((s, a) => s + a.overdueAmount, 0);
+
+  const riskCustomers = filteredCustomers
+    .map(customer => {
+      const rule = TIER_RULES.find(item => item.tier === customer.level);
+      const days = getDaysSinceLastVisit(customer.id);
+      const overdueDays = rule?.overdueDays || 30;
+      return {
+        customer,
+        rule,
+        days,
+        isRisk: days > overdueDays,
+        severity: days > overdueDays * 2 ? '高' : '中',
+      };
+    })
+    .filter(item => item.isRisk)
+    .sort((a, b) => b.customer.opportunityAmount - a.customer.opportunityAmount)
+    .slice(0, 5);
+
+  const stageReview = stageGroups.map(group => {
+    const customers = filteredCustomers.filter(customer => group.stages.includes(customer.opportunityStage));
+    const amount = customers.reduce((sum, customer) => sum + customer.opportunityAmount, 0);
+    return { ...group, count: customers.length, amount };
+  });
+  const maxStageAmount = Math.max(...stageReview.map(item => item.amount), 1);
+
+  const topActions = [
+    riskCustomers.length > 0
+      ? `先处理 ${getFullCompanyName(riskCustomers[0].customer.name)}：${riskCustomers[0].customer.level}级客户已超过经营提醒口径`
+      : '当前无明显超期高风险客户，保持节奏',
+    pendingConfirmCount > 0
+      ? `确认 ${pendingConfirmCount} 个待确认拜访提醒，避免任务悬空`
+      : '拜访任务确认状态正常',
+    stageReview.find(item => item.label === '商务收口')?.count
+      ? '商务收口客户要明确报价、采购流程和签约日期'
+      : '补强价值推进客户，准备 ROI/案例/高层材料',
+  ];
+
+  const handleGenerateReview = () => {
+    sendMessage('请基于当前经营复盘数据，按SABC客户结构、超期风险、商机阶段和下周动作，生成一份销售主管视角的经营复盘建议。');
+  };
 
   return (
     <div className="flex-1 flex overflow-hidden p-4 gap-4">
       <div className="overflow-y-auto space-y-3 pr-1" style={{ width: '66.6%', scrollbarWidth: 'thin' }}>
-
-        {/* Overview KPI */}
         <div className="bg-white rounded-lg p-4" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-          <div className="text-xs font-medium mb-3" style={{ color: '#8F959E' }}>📊 {currentRep.name} · 核心指标</div>
-          <div className="grid grid-cols-5 gap-4">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-sm font-semibold" style={{ color: '#1F2329' }}>{currentRep.name} · 经营复盘</div>
+              <div className="text-xs mt-1" style={{ color: '#8F959E' }}>看客户结构、风险客户、商机阶段和下周动作</div>
+            </div>
+            <button
+              onClick={handleGenerateReview}
+              className="text-xs px-3 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors"
+              style={{ color: '#1B6EF3' }}
+            >
+              生成复盘建议
+            </button>
+          </div>
+          <div className="grid grid-cols-5 gap-3">
             <KpiCard label="客户总数" value={String(filteredCustomers.length)} icon={Users} color="#1B6EF3" />
-            <KpiCard label="商机总额" value={`¥${totalOpp}万`} icon={TrendingUp} color="#52C41A" />
-            <KpiCard label="本周任务" value={String(filteredTasks.length)} icon={Target} color="#F5A623" />
+            <KpiCard label="商机总额" value={`¥${totalOpp}万`} icon={TrendingUp} color="#16A34A" />
+            <KpiCard label="推进客户" value={String(advancingCount)} icon={Target} color="#F59E0B" />
             <KpiCard label="已完成拜访" value={String(filteredCompletedVisits.length)} icon={CheckCircle2} color="#7C3AED" />
-            <KpiCard label="覆盖率" value={`${filteredCoverage.total > 0 ? Math.round(filteredCoverage.covered / filteredCoverage.total * 100) : 0}%`} icon={BarChart3} color="#DC2626" />
+            <KpiCard label="覆盖率" value={`${coveredPct}%`} icon={BarChart3} color="#DC2626" />
           </div>
         </div>
 
-        {/* 核心洞察卡片 */}
         <div className="bg-white rounded-lg p-4" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
           <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="w-4 h-4" style={{ color: '#F5A623' }} />
-            <span className="font-medium text-sm" style={{ color: '#1F2329' }}>本周经营洞察</span>
+            <ClipboardList className="w-4 h-4" style={{ color: '#1B6EF3' }} />
+            <span className="font-medium text-sm" style={{ color: '#1F2329' }}>本周复盘结论</span>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            {/* 超期客户 */}
-            <div className="rounded-lg p-3" style={{ backgroundColor: '#FEF3C7', border: '1px solid #FDE68A' }}>
-              <div className="flex items-center gap-1.5 mb-2">
-                <Calendar className="w-3.5 h-3.5" style={{ color: '#D97706' }} />
-                <span className="text-xs font-medium" style={{ color: '#92400E' }}>超期客户</span>
+            {topActions.map((action, index) => (
+              <div key={action} className="rounded-lg px-3 py-3" style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+                <div className="text-xs font-semibold mb-1" style={{ color: '#1B6EF3' }}>优先动作 {index + 1}</div>
+                <div className="text-sm leading-relaxed" style={{ color: '#1F2329' }}>{action}</div>
               </div>
-              <div className="text-xl font-bold" style={{ color: '#B45309' }}>{totalOverdue}<span className="text-xs font-normal ml-1">家</span></div>
-              <div className="text-xs mt-1" style={{ color: '#B45309' }}>涉及商机 ¥{totalOverdueAmount}万</div>
-              <div className="flex gap-2 mt-2">
-                {overdueAnalysis.filter(a => a.overdue > 0).map(a => (
-                  <span key={a.level} className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: levelColors[a.level] + '20', color: levelColors[a.level] }}>
-                    {a.level}级 {a.overdue}家
-                  </span>
-                ))}
-              </div>
-            </div>
-            {/* 本周待办 */}
-            <div className="rounded-lg p-3" style={{ backgroundColor: '#DBEAFE', border: '1px solid #93C5FD' }}>
-              <div className="flex items-center gap-1.5 mb-2">
-                <Phone className="w-3.5 h-3.5" style={{ color: '#1D4ED8' }} />
-                <span className="text-xs font-medium" style={{ color: '#1E40AF' }}>本周拜访</span>
-              </div>
-              <div className="text-xl font-bold" style={{ color: '#1D4ED8' }}>{filteredTasks.length}<span className="text-xs font-normal ml-1">个任务</span></div>
-              <div className="text-xs mt-1" style={{ color: '#1E40AF' }}>
-                {filteredTasks.filter(t => t.confirmationStatus === 'pending_confirmation').length} 个待确认
-              </div>
-            </div>
-            {/* 商机推进 */}
-            <div className="rounded-lg p-3" style={{ backgroundColor: '#D1FAE5', border: '1px solid #86EFAC' }}>
-              <div className="flex items-center gap-1.5 mb-2">
-                <ArrowUpRight className="w-3.5 h-3.5" style={{ color: '#15803D' }} />
-                <span className="text-xs font-medium" style={{ color: '#166534' }}>商机推进</span>
-              </div>
-              <div className="text-xl font-bold" style={{ color: '#15803D' }}>
-                {stageData.filter(s => s.stage === '"获"商机' || s.stage === '"约"高层' || s.stage === '"定"商务' || s.stage === '"签"合同').reduce((s, i) => s + i.count, 0)}
-                <span className="text-xs font-normal ml-1">家在推进</span>
-              </div>
-              <div className="text-xs mt-1" style={{ color: '#166534' }}>
-                线索 {stageData.find(s => s.stage === '"收"线索')?.count || 0} 家 · 商机 {stageData.find(s => s.stage === '"获"商机')?.count || 0} 家 · 高层 {stageData.find(s => s.stage === '"约"高层')?.count || 0} 家
-              </div>
-            </div>
+            ))}
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          {/* Opportunity by level - horizontal bar */}
           <div className="bg-white rounded-lg p-4" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
             <div className="flex items-center gap-2 mb-3">
-              <BarChart3 className="w-4 h-4" style={{ color: '#1B6EF3' }} />
-              <span className="font-medium text-sm" style={{ color: '#1F2329' }}>商机金额按等级分布</span>
+              <Layers3 className="w-4 h-4" style={{ color: '#1B6EF3' }} />
+              <span className="font-medium text-sm" style={{ color: '#1F2329' }}>SABC经营健康</span>
+            </div>
+            <div className="space-y-2">
+              {tierReview.map(item => (
+                <div key={item.level} className="rounded-lg px-3 py-2" style={{ backgroundColor: '#F8FAFC' }}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold" style={{ color: item.color }}>{item.level}级 · {item.label}</span>
+                    <span className="text-xs" style={{ color: '#8F959E' }}>参考{item.estimatedShare}</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 text-xs">
+                    <Metric label="客户" value={`${item.total}家`} />
+                    <Metric label="覆盖" value={`${item.covered}家/${item.coveragePct}%`} />
+                    <Metric label="风险" value={`${item.overdue}家`} danger={item.overdue > 0} />
+                    <Metric label="商机" value={`¥${item.amount}万`} />
+                  </div>
+                  <div className="text-xs mt-2 truncate" style={{ color: '#64748B' }}>{item.managementMethod}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg p-4" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Route className="w-4 h-4" style={{ color: '#1B6EF3' }} />
+              <span className="font-medium text-sm" style={{ color: '#1F2329' }}>商机阶段卡点</span>
             </div>
             <div className="space-y-3">
-              {oppByLevel.map(item => (
-                <div key={item.level}>
+              {stageReview.map(item => (
+                <div key={item.label}>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium" style={{ color: levelColors[item.level] }}>{item.level}级 ({item.count}家)</span>
-                    <span className="text-xs" style={{ color: '#5A5A5A' }}>¥{item.amount}万</span>
+                    <span className="text-xs font-medium" style={{ color: item.color }}>{item.label}</span>
+                    <span className="text-xs" style={{ color: '#5A5A5A' }}>{item.count}家 · ¥{item.amount}万</span>
                   </div>
                   <div className="h-4 rounded-full bg-gray-100 overflow-hidden">
                     <div className="h-full rounded-full transition-all duration-700" style={{
-                      width: `${(item.amount / maxOpp) * 100}%`,
-                      backgroundColor: levelColors[item.level],
-                      opacity: 0.8,
+                      width: `${item.amount > 0 ? Math.max((item.amount / maxStageAmount) * 100, 10) : 0}%`,
+                      backgroundColor: item.color,
+                      opacity: 0.75,
                     }} />
                   </div>
                 </div>
               ))}
             </div>
           </div>
+        </div>
 
-          {/* Stage distribution */}
-          <div className="bg-white rounded-lg p-4" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-            <div className="flex items-center gap-2 mb-3">
-              <PieChart className="w-4 h-4" style={{ color: '#1B6EF3' }} />
-              <span className="font-medium text-sm" style={{ color: '#1F2329' }}>商机阶段分布</span>
-            </div>
-            <div className="space-y-2">
-              {stageData.map((item, i) => (
-                <div key={item.stage} className="flex items-center gap-2">
-                  <span className="text-xs w-16 text-right" style={{ color: '#8F959E' }}>{item.stage}</span>
-                  <div className="flex-1 h-5 rounded-md bg-gray-100 overflow-hidden flex items-center">
-                    <div className="h-full rounded-md flex items-center justify-end pr-1 transition-all duration-700" style={{
-                      width: item.count > 0 ? `${Math.max((item.count / maxStage) * 100, 15)}%` : '0%',
-                      backgroundColor: ['#FEE2E2', '#FED7AA', '#DBEAFE', '#D1FAE5', '#E9D5FF'][i],
-                    }}>
-                      {item.count > 0 && <span className="text-xs font-medium" style={{ color: ['#DC2626', '#EA580C', '#2563EB', '#059669', '#7C3AED'][i] }}>{item.count}</span>}
-                    </div>
-                  </div>
+        <div className="bg-white rounded-lg p-4" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <ShieldAlert className="w-4 h-4" style={{ color: '#DC2626' }} />
+            <span className="font-medium text-sm" style={{ color: '#1F2329' }}>需要盯紧的客户</span>
+          </div>
+          <div className="space-y-2">
+            {riskCustomers.length > 0 ? riskCustomers.map(item => (
+              <div key={item.customer.id} className="grid grid-cols-[1.5fr_0.7fr_0.7fr_1.8fr] items-center gap-3 rounded-lg px-3 py-2" style={{ backgroundColor: '#FEF2F2' }}>
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold truncate" style={{ color: '#1F2329' }}>{getFullCompanyName(item.customer.name)}</div>
+                  <div className="text-xs mt-0.5" style={{ color: '#8F959E' }}>{item.customer.industry} · {item.customer.currentOpportunity}</div>
                 </div>
-              ))}
-            </div>
+                <div className="text-xs" style={{ color: levelColors[item.customer.level] }}>{item.customer.level}级 · {item.rule?.label}</div>
+                <div className="text-xs font-semibold" style={{ color: item.severity === '高' ? '#DC2626' : '#EA580C' }}>
+                  {item.days === 999 ? '未拜访' : `${item.days}天未拜访`}
+                </div>
+                <div className="text-xs" style={{ color: '#64748B' }}>
+                  建议：先补关系触达，再拿下一步承诺
+                </div>
+              </div>
+            )) : (
+              <div className="text-xs text-center py-6 rounded-lg" style={{ color: '#8F959E', backgroundColor: '#F8FAFC' }}>
+                暂无明显超期风险客户
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Top customers by opportunity */}
         <div className="bg-white rounded-lg p-4" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
           <div className="flex items-center gap-2 mb-3">
-            <TrendingUp className="w-4 h-4" style={{ color: '#52C41A' }} />
-            <span className="font-medium text-sm" style={{ color: '#1F2329' }}>商机金额 TOP 5</span>
+            <AlertTriangle className="w-4 h-4" style={{ color: '#F59E0B' }} />
+            <span className="font-medium text-sm" style={{ color: '#1F2329' }}>下周经营动作</span>
           </div>
-          <div className="space-y-3">
-            {topCustomers.map((c, i) => {
-              const maxAmt = topCustomers[0]?.opportunityAmount || 1;
-              const rankColors = ['#F5A623', '#8F959E', '#CD7F32', '#D1D5DB', '#D1D5DB'];
-              return (
-                <div key={c.id} className="flex items-center gap-3">
-                  {/* 排名 */}
-                  <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                    style={{
-                      backgroundColor: i < 3 ? rankColors[i] : '#E5E7EB',
-                      color: i < 3 ? '#fff' : '#9CA3AF',
-                    }}
-                  >
-                    {i + 1}
-                  </div>
-                  {/* 客户名 + 等级 */}
-                  <div className="w-44 flex-shrink-0 min-w-0">
-                    <div className="text-xs font-medium truncate" style={{ color: '#1F2329' }}>
-                      {getFullCompanyName(c.name)}
-                    </div>
-                    <div className="text-xs mt-0.5" style={{ color: '#8F959E' }}>{c.level}级 · {c.industry}</div>
-                  </div>
-                  {/* 进度条 */}
-                  <div className="flex-1 h-4 rounded-full bg-gray-100 overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-700"
-                      style={{
-                        width: `${(c.opportunityAmount / maxAmt) * 100}%`,
-                        backgroundColor: levelColors[c.level],
-                        opacity: 0.7,
-                      }}
-                    />
-                  </div>
-                  {/* 金额 */}
-                  <span className="w-16 text-right text-sm font-semibold flex-shrink-0" style={{ color: '#1B6EF3' }}>
-                    ¥{c.opportunityAmount}万
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Coverage comparison */}
-        <div className="bg-white rounded-lg p-4" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-          <div className="flex items-center gap-2 mb-3">
-            <CheckCircle2 className="w-4 h-4" style={{ color: '#52C41A' }} />
-            <span className="font-medium text-sm" style={{ color: '#1F2329' }}>拜访覆盖详情</span>
-          </div>
-          <div className="grid grid-cols-4 gap-3">
-            {filteredCoverage.byLevel.map(item => {
-              const pct = item.total > 0 ? Math.round(item.covered / item.total * 100) : 0;
-              const r = 28;
-              const circ = 2 * Math.PI * r;
-              return (
-                <div key={item.level} className="flex flex-col items-center py-2 rounded-lg" style={{ backgroundColor: '#F8F9FA' }}>
-                  <div className="relative mb-1">
-                    <svg width={r * 2 + 8} height={r * 2 + 8} viewBox={`0 0 ${r * 2 + 8} ${r * 2 + 8}`}>
-                      <circle cx={r + 4} cy={r + 4} r={r} fill="none" stroke="#E5E7EB" strokeWidth="5" />
-                      <circle cx={r + 4} cy={r + 4} r={r} fill="none" stroke={levelColors[item.level]} strokeWidth="5"
-                        strokeLinecap="round" strokeDasharray={`${(pct / 100) * circ} ${circ}`}
-                        transform={`rotate(-90 ${r + 4} ${r + 4})`} />
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-sm font-bold" style={{ color: levelColors[item.level] }}>{pct}%</span>
-                    </div>
-                  </div>
-                  <span className="text-xs font-medium" style={{ color: levelColors[item.level] }}>{item.level}级</span>
-                  <span className="text-xs" style={{ color: '#8F959E' }}>{item.covered}/{item.total}家</span>
-                </div>
-              );
-            })}
+          <div className="grid grid-cols-4 gap-2">
+            <ActionCard title="S级" text="补高层互动、活动邀约和驻场服务信号" color="#DC2626" />
+            <ActionCard title="A级" text="确认月度联系，排季度上门拜访" color="#EA580C" />
+            <ActionCard title="B级" text="保持月度触达，筛出升级商机" color="#16A34A" />
+            <ActionCard title="C级" text="批量激活，筛选有价值线索" color="#7B8794" />
           </div>
         </div>
       </div>
@@ -269,6 +255,24 @@ function KpiCard({ label, value, icon: Icon, color }: { label: string; value: st
       <Icon className="w-5 h-5 mx-auto mb-1" style={{ color }} />
       <div className="text-lg font-bold" style={{ color }}>{value}</div>
       <div className="text-xs" style={{ color: '#8F959E' }}>{label}</div>
+    </div>
+  );
+}
+
+function Metric({ label, value, danger = false }: { label: string; value: string; danger?: boolean }) {
+  return (
+    <div>
+      <div className="text-[10px]" style={{ color: '#8F959E' }}>{label}</div>
+      <div className="text-xs font-semibold" style={{ color: danger ? '#DC2626' : '#1F2329' }}>{value}</div>
+    </div>
+  );
+}
+
+function ActionCard({ title, text, color }: { title: string; text: string; color: string }) {
+  return (
+    <div className="rounded-lg px-3 py-2" style={{ backgroundColor: `${color}10`, border: `1px solid ${color}26` }}>
+      <div className="text-xs font-semibold mb-1" style={{ color }}>{title}</div>
+      <div className="text-xs leading-relaxed" style={{ color: '#334155' }}>{text}</div>
     </div>
   );
 }
