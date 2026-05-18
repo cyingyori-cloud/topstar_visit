@@ -1267,6 +1267,100 @@ async function createOpenAIResponse(requestBody, runtime) {
   return payload;
 }
 
+async function createOpenAIChatCompletionsStream(requestBody, runtime, onDelta) {
+  const endpoint = resolveUpstreamEndpoint(runtime.baseUrl, "chat_completions");
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...buildAuthHeader(OPENAI_AUTH_HEADER_NAME, runtime.apiKey, OPENAI_AUTH_TOKEN_PREFIX),
+      ...OPENAI_EXTRA_HEADERS,
+    },
+    body: JSON.stringify({ ...requestBody, stream: true }),
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const message = payload?.error?.message || payload?.message || "OpenAI stream request failed";
+    const error = new Error(`${message} [status=${response.status}]`);
+    error.cause = { provider: "openai", endpoint, status: response.status, payload };
+    throw error;
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("OpenAI stream response body is empty");
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let content = "";
+  let id = null;
+  let model = runtime.model;
+  const toolCallsByIndex = new Map();
+
+  function applyChunk(chunk) {
+    if (chunk.id) id = chunk.id;
+    if (chunk.model) model = chunk.model;
+    const choice = Array.isArray(chunk.choices) ? chunk.choices[0] : null;
+    const delta = choice?.delta || {};
+
+    if (typeof delta.content === "string" && delta.content) {
+      content += delta.content;
+      onDelta(delta.content);
+    }
+
+    if (Array.isArray(delta.tool_calls)) {
+      for (const partial of delta.tool_calls) {
+        const index = partial.index ?? 0;
+        const current = toolCallsByIndex.get(index) || {
+          id: partial.id || "",
+          type: "function",
+          function: { name: "", arguments: "" },
+        };
+        if (partial.id) current.id = partial.id;
+        if (partial.type) current.type = partial.type;
+        if (partial.function?.name) current.function.name += partial.function.name;
+        if (partial.function?.arguments) current.function.arguments += partial.function.arguments;
+        toolCallsByIndex.set(index, current);
+      }
+    }
+  }
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() || "";
+
+    for (const event of events) {
+      for (const line of event.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data:")) continue;
+        const data = trimmed.slice(5).trim();
+        if (!data || data === "[DONE]") continue;
+        const chunk = JSON.parse(data);
+        applyChunk(chunk);
+      }
+    }
+  }
+
+  return {
+    id,
+    model,
+    choices: [
+      {
+        message: {
+          role: "assistant",
+          content,
+          tool_calls: [...toolCallsByIndex.values()].filter(call => call.function.name),
+        },
+      },
+    ],
+  };
+}
+
 async function createAnthropicResponse(requestBody, runtime) {
   const endpoint = resolveAnthropicEndpoint(runtime.baseUrl);
 
@@ -1717,13 +1811,13 @@ async function runAgentStream(body, runtime, res) {
     let wordPreview = null;
 
     sendEvent(res, "thinking", { text: "正在分析您的问题..." });
-    let response = await createOpenAIResponse({
+    let response = await createOpenAIChatCompletionsStream({
       model: runtime.model,
       messages: baseMessages,
       tools: TOOL_DEFINITIONS.map(tool => ({ type: "function", function: tool })),
       tool_choice: "auto",
       temperature: 0.3,
-    }, runtime);
+    }, runtime, (delta) => sendEvent(res, "delta", { text: delta }));
 
     for (let round = 0; round < 6; round++) {
       const functionCalls = extractChatCompletionsToolCalls(response);
@@ -1757,13 +1851,13 @@ async function runAgentStream(body, runtime, res) {
       }
 
       sendEvent(res, "thinking", { text: "处理工具结果中..." });
-      response = await createOpenAIResponse({
+      response = await createOpenAIChatCompletionsStream({
         model: runtime.model,
         messages: baseMessages,
         tools: TOOL_DEFINITIONS.map(tool => ({ type: "function", function: tool })),
         tool_choice: "auto",
         temperature: 0.3,
-      }, runtime);
+      }, runtime, (delta) => sendEvent(res, "delta", { text: delta }));
     }
 
     const finalText = wordPreview || extractChatCompletionsText(response) || "处理完成";

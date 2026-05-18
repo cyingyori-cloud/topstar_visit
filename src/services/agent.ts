@@ -155,6 +155,7 @@ export async function sendAgentChatStream(
   payload: AgentChatRequest,
   onThinking: (text: string) => void,
   onToolCall: (name: string, result: any) => void,
+  onDelta: (text: string) => void,
   onDone: (text: string) => void,
   onError: (error: string) => void
 ): Promise<void> {
@@ -213,6 +214,8 @@ export async function sendAgentChatStream(
               onThinking(parsed.text || '');
             } else if (eventType === 'tool') {
               onToolCall(parsed.name || '', parsed.result);
+            } else if (eventType === 'delta') {
+              onDelta(parsed.text || '');
             } else if (eventType === 'done') {
               onDone(parsed.text || '');
             }

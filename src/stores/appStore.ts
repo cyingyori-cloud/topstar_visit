@@ -1330,6 +1330,21 @@ export const useAppStore = create<AppState>((set, get) => {
                   : null,
               }));
             },
+            (deltaText) => {
+              set((currentState) => ({
+                thinkingMessage: currentState.thinkingMessage
+                  ? {
+                      ...currentState.thinkingMessage,
+                      content:
+                        currentState.thinkingMessage.content === '正在思考...' ||
+                        currentState.thinkingMessage.content.startsWith('调用工具:') ||
+                        currentState.thinkingMessage.content === '处理工具结果中...'
+                          ? deltaText
+                          : `${currentState.thinkingMessage.content}${deltaText}`,
+                    }
+                  : null,
+              }));
+            },
             (finalText) => {
               const aiMsg: ChatMessage = {
                 id: `msg-${++messageIdCounter}`,
