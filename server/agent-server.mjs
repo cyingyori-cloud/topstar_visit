@@ -1639,7 +1639,7 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  if (req.method === "GET" && req.url.startsWith("/artifacts/")) {
+  if ((req.method === "GET" || req.method === "HEAD") && req.url.startsWith("/artifacts/")) {
     const filename = basename(decodeURIComponent(req.url.slice("/artifacts/".length)));
     const filePath = join(ARTIFACT_DIR, filename);
     if (!existsSync(filePath)) {
@@ -1651,6 +1651,11 @@ const server = createServer(async (req, res) => {
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/msword; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    if (req.method === "HEAD") {
+      res.end();
+      return;
+    }
+
     res.end(readFileSync(filePath));
     return;
   }
