@@ -4,6 +4,49 @@ import { TIER_RULES } from '../data/skills';
 import { X, Star, CheckCircle2, Circle, MessageSquare, ArrowRight, Send } from 'lucide-react';
 import { getFullCompanyName } from '../utils/companyNames';
 
+// 成单十步法 - 商机阶段
+const OPPORTUNITY_STAGES: StageInfo[] = [
+  { stage: '"收"线索', rate: 0, desc: '收集线索' },
+  { stage: '"查"信息', rate: 10, desc: '了解信息' },
+  { stage: '"获"商机', rate: 20, desc: '获得商机' },
+  { stage: '"做"客情', rate: 30, desc: '做客情' },
+  { stage: '"观"案例', rate: 40, desc: '参观案例' },
+  { stage: '"报"价值', rate: 50, desc: '汇报价值' },
+  { stage: '"约"高层', rate: 60, desc: '约见高层' },
+  { stage: '"定"商务', rate: 80, desc: '确定商务' },
+  { stage: '"签"合同', rate: 90, desc: '签订合同' },
+  { stage: '"收"全款', rate: 100, desc: '收回全款' },
+];
+
+interface StageInfo {
+  stage: string;
+  rate: number;
+  desc: string;
+}
+
+function getStageInfo(percent: number): StageInfo {
+  if (percent === 0) return OPPORTUNITY_STAGES[0];
+  if (percent <= 10) return OPPORTUNITY_STAGES[1];
+  if (percent <= 20) return OPPORTUNITY_STAGES[2];
+  if (percent <= 30) return OPPORTUNITY_STAGES[3];
+  if (percent <= 40) return OPPORTUNITY_STAGES[4];
+  if (percent <= 50) return OPPORTUNITY_STAGES[5];
+  if (percent <= 60) return OPPORTUNITY_STAGES[6];
+  if (percent <= 80) return OPPORTUNITY_STAGES[7];
+  if (percent <= 90) return OPPORTUNITY_STAGES[8];
+  return OPPORTUNITY_STAGES[9];
+}
+
+function getNextStage(currentPercent: number): StageInfo | null {
+  const stages = OPPORTUNITY_STAGES.map(s => s.rate);
+  for (const stage of stages) {
+    if (stage > currentPercent) {
+      return OPPORTUNITY_STAGES.find(s => s.rate === stage) || null;
+    }
+  }
+  return null;
+}
+
 interface CompletedVisit {
   id: string;
   customerId: string;
@@ -40,6 +83,11 @@ export default function VisitEvaluation({ visit, onClose }: Props) {
   const toggleCheck = (item: string) => {
     setChecks(prev => ({ ...prev, [item]: !prev[item] }));
   };
+
+  // 获取商机阶段信息（模拟当前商机的百分比）
+  const opportunityPercent = 30; // TODO: 从 visit 或 customer 获取
+  const currentStage = getStageInfo(opportunityPercent);
+  const nextStage = getNextStage(opportunityPercent);
 
   const handleSubmit = () => {
     setSubmitted(true);
@@ -170,24 +218,54 @@ export default function VisitEvaluation({ visit, onClose }: Props) {
             </div>
           </div>
 
-          {/* Stage advance */}
+          {/* Stage advance - 成单十步法 */}
           <div>
             <div className="flex items-center gap-2 mb-2">
               <ArrowRight className="w-4 h-4" style={{ color: '#1B6EF3' }} />
-              <span className="text-sm font-medium" style={{ color: '#1F2329' }}>商机阶段是否推进？</span>
+              <span className="text-sm font-medium" style={{ color: '#1F2329' }}>商机阶段</span>
             </div>
-            <div className="flex items-center gap-2">
-              {['未推进', '有进展', '已推进到下一阶段'].map(opt => (
-                <button key={opt} onClick={() => setStageAdvance(opt)}
-                  className="text-xs px-3 py-1.5 rounded-full transition-all"
+            {/* 阶段进度条 */}
+            <div className="mb-3">
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="font-medium" style={{ color: '#1B6EF3' }}>{currentStage.stage} · {currentStage.desc}</span>
+                <span style={{ color: '#8F959E' }}>{currentStage.rate}%</span>
+              </div>
+              <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#E5E7EB' }}>
+                <div
+                  className="h-full rounded-full transition-all duration-500"
                   style={{
-                    backgroundColor: stageAdvance === opt ? '#1B6EF3' : '#F3F4F6',
-                    color: stageAdvance === opt ? '#fff' : '#5A5A5A',
-                    fontWeight: stageAdvance === opt ? 600 : 400,
-                  }}>
-                  {opt}
-                </button>
-              ))}
+                    width: `${currentStage.rate}%`,
+                    background: 'linear-gradient(90deg, #1B6EF3, #7C3AED)'
+                  }}
+                />
+              </div>
+              {nextStage && (
+                <div className="text-xs mt-1" style={{ color: '#52C41A' }}>
+                  下一步：{nextStage.stage} · {nextStage.desc}
+                </div>
+              )}
+            </div>
+            {/* 阶段选择按钮 */}
+            <div className="flex flex-wrap gap-1.5">
+              {OPPORTUNITY_STAGES.map((stage) => {
+                const isActive = currentStage.rate === stage.rate;
+                const isPast = stage.rate < currentStage.rate;
+                return (
+                  <button
+                    key={stage.stage}
+                    onClick={() => setStageAdvance(stage.stage)}
+                    className="text-xs px-2 py-1 rounded transition-all"
+                    style={{
+                      backgroundColor: isActive ? '#1B6EF3' : isPast ? '#E8F4FF' : '#F5F5F5',
+                      color: isActive ? '#fff' : isPast ? '#1B6EF3' : '#8F959E',
+                      fontWeight: isActive ? 600 : 400,
+                      border: isActive ? 'none' : '1px solid #E5E7EB',
+                    }}
+                  >
+                    {stage.stage}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

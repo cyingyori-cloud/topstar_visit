@@ -71,6 +71,9 @@ export interface AgentChatResponse {
   } | null;
 }
 
+// 流式事件回调
+export type StreamCallback = (event: string, data: any) => void;
+
 interface AgentChatRequest {
   message: string;
   previousResponseId: string | null;
@@ -144,4 +147,71 @@ export async function testAgentConnection(runtimeConfig: AgentRuntimeConfig): Pr
     apiMode: typeof data?.apiMode === 'string' ? data.apiMode : (runtimeConfig.apiMode || 'unknown'),
     error: typeof data?.error === 'string' ? data.error : null,
   };
+}
+
+// 流式发送消息（实时显示思考过程）
+export async function sendAgentChatStream(
+  payload: AgentChatRequest,
+  onThinking: (text: string) => void,
+  onToolCall: (name: string, result: any) => void,
+  onDone: (text: string) => void,
+  onError: (error: string) => void
+): Promise<void> {
+  const baseUrl = getAgentBaseUrl();
+
+  try {
+    const response = await fetch(`${baseUrl}/api/agent/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payload, stream: true }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      onError(data?.error || "请求失败");
+      return;
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      // Fallback: 如果不支持流式，使用普通响应
+      const data = await response.json();
+      onDone(data.text || "");
+      return;
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (line.startsWith("event: ")) {
+          const event = line.slice(7);
+          continue;
+        }
+        if (line.startsWith("data: ")) {
+          const data = line.slice(6);
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.type === "thinking") {
+              onThinking(parsed.text);
+            } else if (parsed.type === "tool") {
+              onToolCall(parsed.name, parsed.result);
+            } else if (parsed.type === "done") {
+              onDone(parsed.text);
+            }
+          } catch {}
+        }
+      }
+    }
+  } catch (err: any) {
+    onError(err.message || "连接失败");
+  }
 }

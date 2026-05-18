@@ -1,6 +1,29 @@
+import 'dotenv/config';
 import { createServer } from "node:http";
+import { readFileSync, readdirSync } from "node:fs";
 import { RemoteMcpClient, loadMcpConfig } from "./mcp-client.mjs";
 import { buildVisitCoachRuntimeGuide, hasVisitCoachSkillFile, shouldUseVisitCoach } from "./topstar-visit-coach.mjs";
+
+// 加载知识库
+const KNOWLEDGE_DIR = process.env.KNOWLEDGE_DIR || "./knowledge";
+let KNOWLEDGE_BASE = "";
+
+function loadKnowledgeBase() {
+  try {
+    const files = readdirSync(KNOWLEDGE_DIR).filter(f => f.endsWith('.md'));
+    const contents = files.map(file => {
+      const content = readFileSync(`${KNOWLEDGE_DIR}/${file}`, "utf8");
+      return `=== ${file.replace('.md', '')} ===\n\n${content}`;
+    });
+    KNOWLEDGE_BASE = contents.join('\n\n');
+    console.log(`[knowledge] Loaded ${files.length} knowledge files, total ${KNOWLEDGE_BASE.length} chars`);
+  } catch (err) {
+    console.log(`[knowledge] Could not load knowledge base: ${err.message}`);
+    KNOWLEDGE_BASE = "";
+  }
+}
+
+loadKnowledgeBase();
 
 const PORT = Number(process.env.PORT || 8788);
 const MODEL_PROVIDER = process.env.MODEL_PROVIDER || (process.env.ANTHROPIC_AUTH_TOKEN ? "anthropic" : "openai");
@@ -530,6 +553,10 @@ function extractFunctionCalls(response) {
 }
 
 function instructionsForContext(context) {
+  const knowledgeSection = KNOWLEDGE_BASE
+    ? `\n\n## 拓斯达行业知识库\n\n以下是拓斯达销售必须掌握的行业Know-How，在回答客户问题、推荐话术、分析竞品时，请优先使用这些知识：\n\n${KNOWLEDGE_BASE}\n`
+    : "";
+
   return [
     "你是 TopStar 智能拜访助手的真实业务 Agent。",
     `当前用户角色：${(context.currentRep || { name: "销售同事", role: "销售" }).name}（${(context.currentRep || { name: "销售同事", role: "销售" }).role}）。`,
@@ -542,6 +569,7 @@ function instructionsForContext(context) {
     "如果用户问具体客户、拜访频率、行业案例、话术、POCC 准备，请先调用对应 tool 再回答。",
     "输出风格：先给结论，再给 3-5 条可执行建议；必要时用表格。",
     "不要声称已经写入 CRM 或创建了任务，除非工具结果明确说明已经落库。",
+    knowledgeSection,
   ].join("\n");
 }
 
@@ -1023,6 +1051,148 @@ function buildDebugMeta(runtime) {
   };
 }
 
+function sendEvent(res, event, data) {
+  res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+
+// 流式 Agent：每一步都实时推送思考过程
+async function runAgentStream(body, runtime, res) {
+  const builtInstructions = await buildInstructions(body);
+
+  if (runtime.provider === "anthropic") {
+    let messages = [{ role: "user", content: body.message }];
+
+    sendEvent(res, "thinking", { text: "正在分析您的问题..." });
+    let response = await createAnthropicResponse(buildInitialRequest({
+      ...body,
+      instructionsText: builtInstructions.text,
+      messagesOverride: messages,
+    }), runtime);
+
+    for (let round = 0; round < 6; round++) {
+      const toolUses = extractAnthropicToolUses(response);
+      if (!toolUses.length) break;
+
+      messages.push({ role: "assistant", content: response.content });
+
+      for (const call of toolUses) {
+        sendEvent(res, "thinking", { text: `调用工具 ${call.name}...` });
+        const result = await executeTool(call.name, call.input, body.context || {});
+        sendEvent(res, "tool", { name: call.name, result });
+        messages.push({
+          role: "user",
+          content: [{ type: "tool_result", tool_use_id: call.id, content: JSON.stringify(result) }],
+        });
+      }
+
+      sendEvent(res, "thinking", { text: "处理工具结果中..." });
+      response = await createAnthropicResponse(buildInitialRequest({
+        ...body,
+        instructionsText: builtInstructions.text,
+        messagesOverride: messages,
+      }), runtime);
+    }
+
+    const finalText = extractAnthropicText(response) || "处理完成";
+    sendEvent(res, "done", { text: finalText });
+    res.end();
+    return;
+  }
+
+  if (runtime.apiMode === "chat_completions") {
+    const baseMessages = [
+      { role: "system", content: builtInstructions.text },
+      { role: "user", content: body.message },
+    ];
+
+    sendEvent(res, "thinking", { text: "正在分析您的问题..." });
+    let response = await createOpenAIResponse({
+      model: runtime.model,
+      messages: baseMessages,
+      tools: TOOL_DEFINITIONS.map(tool => ({ type: "function", function: tool })),
+      tool_choice: "auto",
+      temperature: 0.3,
+    }, runtime);
+
+    for (let round = 0; round < 6; round++) {
+      const functionCalls = extractChatCompletionsToolCalls(response);
+      if (!functionCalls.length) break;
+
+      const assistantMsg = response.choices?.[0]?.message;
+      baseMessages.push({
+        role: "assistant",
+        content: assistantMsg?.content || "",
+        tool_calls: functionCalls.map(call => ({
+          id: call.id,
+          type: "function",
+          function: { name: call.name, arguments: call.arguments },
+        })),
+      });
+
+      for (const call of functionCalls) {
+        sendEvent(res, "thinking", { text: `调用工具 ${call.name}...` });
+        let args = {};
+        try { args = JSON.parse(call.arguments); } catch {}
+        const result = await executeTool(call.name, args, body.context || {});
+        sendEvent(res, "tool", { name: call.name, result });
+        baseMessages.push({
+          role: "tool",
+          tool_call_id: call.id,
+          content: JSON.stringify(result),
+        });
+      }
+
+      sendEvent(res, "thinking", { text: "处理工具结果中..." });
+      response = await createOpenAIResponse({
+        model: runtime.model,
+        messages: baseMessages,
+        tools: TOOL_DEFINITIONS.map(tool => ({ type: "function", function: tool })),
+        tool_choice: "auto",
+        temperature: 0.3,
+      }, runtime);
+    }
+
+    const finalText = extractChatCompletionsText(response) || "处理完成";
+    sendEvent(res, "done", { text: finalText });
+    res.end();
+    return;
+  }
+
+  // Responses API 流式
+  sendEvent(res, "thinking", { text: "正在分析您的问题..." });
+  let response = await createOpenAIResponse(buildInitialRequest({
+    ...body,
+    instructionsText: builtInstructions.text,
+  }), runtime);
+
+  for (let round = 0; round < 6; round++) {
+    const functionCalls = extractFunctionCalls(response);
+    if (!functionCalls.length) break;
+
+    const outputs = [];
+    for (const call of functionCalls) {
+      sendEvent(res, "thinking", { text: `调用工具 ${call.name}...` });
+      let args = {};
+      try { args = JSON.parse(call.arguments); } catch {}
+      const result = await executeTool(call.name, args, body.context || {});
+      sendEvent(res, "tool", { name: call.name, result });
+      outputs.push({ type: "function_call_output", call_id: call.call_id, output: JSON.stringify(result) });
+    }
+
+    sendEvent(res, "thinking", { text: "处理工具结果中..." });
+    response = await createOpenAIResponse({
+      model: runtime.model,
+      previous_response_id: response.id,
+      input: outputs,
+      ...(isGpt5Family(MODEL) ? { reasoning: { effort: "medium" }, text: { verbosity: "low" } } : {}),
+    }, runtime);
+  }
+
+  const finalText = extractResponseText(response) || "处理完成";
+  sendEvent(res, "done", { text: finalText });
+  res.end();
+}
+
 const server = createServer(async (req, res) => {
   if (!req.url) {
     sendJson(res, 404, { error: "Not found" });
@@ -1132,6 +1302,22 @@ const server = createServer(async (req, res) => {
     try {
       if (!requestBody?.message || typeof requestBody.message !== "string") {
         sendJson(res, 400, { error: "message is required" });
+        return;
+      }
+
+      // 支持流式输出
+      const wantStream = requestBody.stream === true;
+      if (wantStream) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.statusCode = 200;
+
+        runAgentStream(requestBody, runtime, res).catch(err => {
+          res.write(`event: error\ndata: ${JSON.stringify({ error: err.message })}\n\n`);
+          res.end();
+        });
         return;
       }
 

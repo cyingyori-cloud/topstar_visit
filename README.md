@@ -1,10 +1,11 @@
 # TopStar Visit AI Agent Scaffold
 
-这个目录是在原型基础上补的一版“真实 Agent”骨架：
+这个目录是在原型基础上补的一版”真实 Agent”骨架：
 
 - 前端：继续使用现有 React + Zustand 聊天界面
 - 后端：本地 Node 服务，调用 OpenAI Responses API
 - Skills：先以本地 business tools 形式实现
+- 知识库：拓斯达行业 Know-How 文档，AI 回答时自动注入上下文
 - Fallback：如果没有配置 OpenAI 或 agent 服务不可用，会自动退回原有规则引擎
 
 ## 目录
@@ -15,6 +16,8 @@
   本地 agent 运行时
 - `src/stores/appStore.ts`
   聊天入口，优先走 agent，失败时退回 fallback
+- `knowledge/`
+  拓斯达行业知识库（docx 已转换为 markdown）
 
 ## 运行
 
@@ -42,6 +45,8 @@ npm run dev:agent
 
 可选环境变量：
 
+- `KNOWLEDGE_DIR`
+  知识库目录，默认 `./knowledge`
 - `OPENAI_MODEL`
   默认 `gpt-5.5`
 - `OPENAI_BASE_URL`

@@ -14,7 +14,13 @@ const suggestions = [
   '话术推荐',
 ];
 
-const providerOptions = ['OpenAI / 兼容接口', 'DashScope', 'Anthropic', '本地规则'];
+const providerOptions = [
+  { label: 'OpenAI / 兼容接口', value: 'OpenAI / 兼容接口' },
+  { label: 'DashScope', value: 'DashScope' },
+  { label: 'Anthropic (Claude)', value: 'Anthropic' },
+  { label: '本地规则（备用）', value: '本地规则' },
+];
+
 const MODEL_CONFIG_STORAGE_KEY = 'topstar-visit-model-config-v1';
 
 export default function ChatArea() {
@@ -45,7 +51,6 @@ export default function ChatArea() {
   const lastAssistant = [...messages].reverse().find(msg => msg.role === 'assistant');
   const agentMeta = lastAssistant?.meta;
   const coachBadge = agentMeta?.coachMode ? `Coach · ${agentMeta.coachMode}` : null;
-  const providerBadge = agentMeta?.provider ? `${agentMeta.provider} · ${agentMeta.apiMode || 'unknown'}` : null;
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -123,6 +128,7 @@ export default function ChatArea() {
           </div>
           <span className="font-medium text-sm" style={{ color: '#1F2329' }}>智能拜访助手</span>
           <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+          {/* 单一状态标签：只显示实际使用的模式 */}
           <span
             className="text-[10px] px-1.5 py-0.5 rounded-full"
             style={{
@@ -130,7 +136,10 @@ export default function ChatArea() {
               color: agentMeta?.source === 'agent' ? '#389E0D' : '#D48806',
             }}
           >
-            {agentMeta?.source === 'agent' ? `Agent · ${agentMeta.model || 'OpenAI'}` : agentEnabled ? 'Fallback' : 'Rules'}
+            {agentMeta?.source === 'agent'
+              ? `AI · ${agentMeta.model || runtimeConfig?.model || 'OpenAI'}`
+              : '本地规则'
+            }
           </span>
           {coachBadge && (
             <span
@@ -140,19 +149,7 @@ export default function ChatArea() {
                 color: '#1B6EF3',
               }}
             >
-              {coachBadge}
-            </span>
-          )}
-          {providerBadge && (
-            <span
-              className="text-[10px] px-1.5 py-0.5 rounded-full"
-              style={{
-                backgroundColor: 'rgba(15,23,42,0.08)',
-                color: '#475569',
-              }}
-              title={agentMeta?.endpoint || ''}
-            >
-              {providerBadge}
+              Coach · {coachBadge.split(' · ')[1]}
             </span>
           )}
         </div>
@@ -163,7 +160,7 @@ export default function ChatArea() {
             style={{ color: '#5A5A5A' }}
           >
             <Sparkles className="w-3 h-3" style={{ color: '#1B6EF3' }} />
-            {modelProviderLabel}
+            {agentMeta?.source === 'agent' ? '切换模型' : '启用 AI'}
             <ChevronDown className="w-3 h-3" />
           </button>
           {showModelMenu && (
@@ -176,7 +173,7 @@ export default function ChatArea() {
                   openModelConfig();
                 }}
               >
-                自行接入模型
+                模型配置
               </button>
             </div>
           )}
@@ -185,7 +182,7 @@ export default function ChatArea() {
 
       {lastAgentError && (
         <div className="px-5 py-2 text-xs border-b border-gray-100" style={{ color: '#D48806', backgroundColor: '#FFFBE6' }}>
-          Agent 当前不可用，已自动切回本地规则回复：{lastAgentError}
+          AI 不可用，已自动切换到本地规则：{lastAgentError}
         </div>
       )}
 
@@ -246,8 +243,8 @@ export default function ChatArea() {
           <div className="w-[460px] rounded-2xl bg-white shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
-                <div className="text-base font-semibold" style={{ color: '#1F2329' }}>模型接入配置</div>
-                <div className="text-xs mt-1" style={{ color: '#8F959E' }}>放在智能拜访助手内，测试是否真正接入成功</div>
+                <div className="text-base font-semibold" style={{ color: '#1F2329' }}>AI 模型配置</div>
+                <div className="text-xs mt-1" style={{ color: '#8F959E' }}>配置 AI 模型以获得更智能的回答</div>
               </div>
               <button onClick={() => setModelConfigOpen(false)} className="p-1.5 rounded hover:bg-gray-100">
                 <X className="w-4 h-4" style={{ color: '#8F959E' }} />
@@ -256,33 +253,40 @@ export default function ChatArea() {
 
             <div className="px-5 py-4 space-y-4">
               <div>
-                <label className="text-xs font-medium block mb-1.5" style={{ color: '#5A5A5A' }}>Provider</label>
+                <label className="text-xs font-medium block mb-1.5" style={{ color: '#5A5A5A' }}>模型类型</label>
                 <select
                   value={providerDraft}
                   onChange={(e) => setProviderDraft(e.target.value)}
                   className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 outline-none focus:border-blue-400"
                 >
-                  {providerOptions.map(option => <option key={option} value={option}>{option}</option>)}
+                  {providerOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
+                {providerDraft === '本地规则' && (
+                  <div className="text-xs mt-1" style={{ color: '#8F959E' }}>
+                    选择本地规则将直接使用内置规则引擎回复，不依赖外部 AI 模型
+                  </div>
+                )}
               </div>
 
               <div>
-                <label className="text-xs font-medium block mb-1.5" style={{ color: '#5A5A5A' }}>Base URL</label>
+                <label className="text-xs font-medium block mb-1.5" style={{ color: '#5A5A5A' }}>API 地址</label>
                 <input
                   value={baseUrlDraft}
                   onChange={(e) => setBaseUrlDraft(e.target.value)}
                   placeholder="例如：https://api.example.com/v1"
                   className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 outline-none focus:border-blue-400"
+                  disabled={providerDraft === '本地规则'}
                 />
               </div>
 
               <div>
-                <label className="text-xs font-medium block mb-1.5" style={{ color: '#5A5A5A' }}>Model</label>
+                <label className="text-xs font-medium block mb-1.5" style={{ color: '#5A5A5A' }}>模型名称</label>
                 <input
                   value={modelDraft}
                   onChange={(e) => setModelDraft(e.target.value)}
                   placeholder="例如：gpt-4o / qwen3.5-plus / claude-3-5-sonnet"
                   className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 outline-none focus:border-blue-400"
+                  disabled={providerDraft === '本地规则'}
                 />
               </div>
 
@@ -294,6 +298,7 @@ export default function ChatArea() {
                   onChange={(e) => setApiKeyDraft(e.target.value)}
                   placeholder="输入可用的 API Key"
                   className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 outline-none focus:border-blue-400"
+                  disabled={providerDraft === '本地规则'}
                 />
               </div>
 

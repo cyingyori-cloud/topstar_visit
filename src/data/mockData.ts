@@ -402,8 +402,25 @@ export const customers: Customer[] = [
     ],
     currentOpportunity: '贴片自动化',
     opportunityAmount: 10,
-    opportunityStage: '“收”线索',
+    opportunityStage: '”收”线索',
     opportunityPercent: 0,
+  },
+  {
+    id: 'c20b',
+    name: '江科泰电子',
+    level: 'A',
+    industry: '电子制造',
+    address: '江门市江海区江科泰工业园',
+    region: '江门江海',
+    keyContacts: [
+      { name: '陈总', title: '生产总监', phone: '138****2001' },
+      { name: '林工', title: '设备主管', phone: '139****2002' },
+    ],
+    currentOpportunity: '江科泰＋三机一体＋1',
+    opportunityAmount: 35,
+    opportunityStage: '”做”客情',
+    opportunityPercent: 30,
+    opportunityDescription: '客户新产品除湿要求较高',
   },
 
   // === C级 · 沉睡客户（10家）===
