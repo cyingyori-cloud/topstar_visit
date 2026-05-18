@@ -649,7 +649,7 @@ function escapeHtml(value) {
 function formatCurrency(value) {
   const amount = Number(value || 0);
   if (!amount) return "暂未明确";
-  return `${amount.toLocaleString("zh-CN")} 元`;
+  return `${amount.toLocaleString("zh-CN")} 万元`;
 }
 
 function buildWordSections(business, documentType) {
