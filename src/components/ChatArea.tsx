@@ -2,7 +2,7 @@ import { useRef, useEffect } from 'react';
 import { useAppStore } from '../stores/appStore';
 import MessageBubble from './MessageBubble';
 import InputBar from './InputBar';
-import { Bot, ChevronDown, Sparkles, X } from 'lucide-react';
+import { Bot, ChevronDown, Maximize2, Minimize2, Sparkles, X } from 'lucide-react';
 import { normalizeCompanyNames } from '../utils/companyNames';
 import { useState } from 'react';
 import { testAgentConnection } from '../services/agent';
@@ -47,6 +47,7 @@ export default function ChatArea() {
   const [modelDraft, setModelDraft] = useState('gpt-5.5');
   const [apiKeyDraft, setApiKeyDraft] = useState('sk-10f212a07f4d13cd0a024ce20f411fb04b6d7c9d76ca904767101dbefb4bd69b');
   const [showModelMenu, setShowModelMenu] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const lastAssistant = [...messages].reverse().find(msg => msg.role === 'assistant');
@@ -78,6 +79,25 @@ export default function ChatArea() {
       // ignore invalid local cache
     }
   }, [setModelProviderLabel, setRuntimeConfig, runtimeConfig]);
+
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+    const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (distanceToBottom < 180) {
+      messagesEndRef.current?.scrollIntoView({ block: 'end' });
+    }
+  }, [messages.length, thinkingMessage?.content, isTyping]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const openModelConfig = () => {
     setModelConfigOpen(true);
@@ -124,7 +144,12 @@ export default function ChatArea() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-lg" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+    <div
+      className={`flex flex-col bg-white ${isFullscreen ? 'fixed inset-0 z-50 rounded-none' : 'h-full rounded-lg'}`}
+      style={{
+        boxShadow: isFullscreen ? '0 24px 80px rgba(15,23,42,0.24)' : '0 2px 8px rgba(0,0,0,0.08)',
+      }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -158,7 +183,16 @@ export default function ChatArea() {
             </span>
           )}
         </div>
-        <div className="relative">
+        <div className="relative flex items-center gap-2">
+          <button
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 hover:bg-gray-50 transition-colors"
+            style={{ color: '#5A5A5A' }}
+            title={isFullscreen ? '退出全屏' : '放大全屏'}
+            aria-label={isFullscreen ? '退出全屏' : '放大全屏'}
+          >
+            {isFullscreen ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
+          </button>
           <button
             onClick={() => setShowModelMenu(!showModelMenu)}
             className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors"
@@ -194,7 +228,7 @@ export default function ChatArea() {
       {/* Messages */}
       <div
         ref={chatContainerRef}
-        className="flex-1 overflow-y-auto px-5 py-4"
+        className={`flex-1 overflow-y-auto px-5 py-4 ${isFullscreen ? 'mx-auto w-full max-w-[1180px]' : ''}`}
         style={{ scrollbarWidth: 'thin' }}
       >
         {messages.map(msg => (
@@ -260,6 +294,7 @@ export default function ChatArea() {
 
       {/* Input */}
       <div className="flex-shrink-0 border-t border-gray-100">
+        <div className={isFullscreen ? 'mx-auto w-full max-w-[1180px]' : ''}>
         <InputBar />
 
         {/* Suggestions */}
@@ -278,6 +313,7 @@ export default function ChatArea() {
               {normalizeCompanyNames(s)}
             </button>
           ))}
+        </div>
         </div>
       </div>
 

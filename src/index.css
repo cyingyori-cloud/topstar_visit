@@ -71,6 +71,19 @@ textarea::placeholder {
   background: linear-gradient(135deg, #24364A, #3A526B);
 }
 
+.assistant-answer {
+  color: #1F2329;
+  overflow-wrap: anywhere;
+}
+
+.assistant-answer > *:first-child {
+  margin-top: 0;
+}
+
+.assistant-answer > *:last-child {
+  margin-bottom: 0;
+}
+
 /* Custom bounce animation for typing dots */
 @keyframes typingBounce {
   0%, 60%, 100% { transform: translateY(0); }

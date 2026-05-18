@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import { useAppStore } from '../stores/appStore';
 import { knowledgeCategories } from '../data/mockData';
+import { knowledgeDocumentCategories } from '../data/knowledgeBase';
 import ChatArea from './ChatArea';
 import { Search, BookOpen, Pin, Flame, Filter } from 'lucide-react';
 import { normalizeCompanyNames } from '../utils/companyNames';
 
-const allCategories = ['全部', ...knowledgeCategories.map(c => c.name)];
+const allCategories = [
+  '全部',
+  ...new Set([...knowledgeDocumentCategories, ...knowledgeCategories].map(c => c.name)),
+];
 
 export default function KnowledgeBase() {
   const { triggerKnowledgeContext, filteredKnowledge, currentRep } = useAppStore();
@@ -15,7 +19,12 @@ export default function KnowledgeBase() {
   const audienceLabel = currentRep.level === 1 ? '战略层内容' : currentRep.level === 2 ? '管理层内容' : '执行层内容';
 
   const filtered = filteredKnowledge.filter(k => {
-    const matchSearch = !search || k.title.includes(search) || k.tags.some(t => t.includes(search)) || k.category.includes(search);
+    const keyword = search.trim().toLowerCase();
+    const matchSearch = !keyword ||
+      k.title.toLowerCase().includes(keyword) ||
+      k.content.toLowerCase().includes(keyword) ||
+      k.tags.some(t => t.toLowerCase().includes(keyword)) ||
+      k.category.toLowerCase().includes(keyword);
     const matchCat = activeCategory === '全部' || k.category === activeCategory;
     return matchSearch && matchCat;
   });
@@ -52,7 +61,7 @@ export default function KnowledgeBase() {
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="搜索话术、方案、案例..."
+              placeholder="搜索产品、工艺、竞品、话术、ROI、案例..."
               className="w-full text-sm pl-9 pr-3 py-2.5 rounded-lg border border-gray-200 outline-none focus:border-blue-400"
               style={{ backgroundColor: '#F5F7FA' }}
             />

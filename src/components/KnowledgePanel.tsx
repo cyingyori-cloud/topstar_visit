@@ -14,6 +14,7 @@ export default function KnowledgePanel() {
   const filteredItems = searchQuery
     ? filteredKnowledge.filter(k =>
         k.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        k.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
         k.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase())) ||
         k.category.includes(searchQuery)
       )

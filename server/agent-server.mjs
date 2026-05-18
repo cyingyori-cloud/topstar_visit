@@ -11,6 +11,48 @@ const ARTIFACT_DIR = process.env.ARTIFACT_DIR || "./server/artifacts";
 const PUBLIC_AGENT_BASE_URL = (process.env.PUBLIC_AGENT_BASE_URL || process.env.RENDER_EXTERNAL_URL || "https://topstar-visit.onrender.com").replace(/\/$/, "");
 let KNOWLEDGE_BASE = "";
 let KNOWLEDGE_FILES = [];
+let KNOWLEDGE_CHUNKS = [];
+
+function normalizeSearchText(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function tokenizeQuery(value) {
+  return [...new Set(
+    normalizeSearchText(value)
+      .split(/[\s,，。；;、/|()（）【】\[\]:"“”'《》<>]+/)
+      .map((item) => item.trim())
+      .filter((item) => item.length >= 2)
+  )];
+}
+
+function excerptText(value, limit = 1200) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, limit);
+}
+
+function buildKnowledgeChunks(filename, content) {
+  const title = filename.replace(/\.md$/i, "");
+  const sections = String(content || "")
+    .split(/\n(?=#{1,4}\s+)/g)
+    .map((section) => section.trim())
+    .filter(Boolean);
+  const sourceSections = sections.length ? sections : [content];
+
+  return sourceSections.map((section, index) => {
+    const heading = section.match(/^#{1,4}\s+(.+)$/m)?.[1]?.trim() || title;
+    return {
+      id: `${filename}#${index + 1}`,
+      filename,
+      title,
+      heading,
+      content: section,
+      searchText: normalizeSearchText(`${title} ${heading} ${section}`),
+    };
+  });
+}
 
 function loadKnowledgeBase() {
   try {
@@ -25,11 +67,16 @@ function loadKnowledgeBase() {
       filename: file,
       size: readFileSync(`${KNOWLEDGE_DIR}/${file}`, "utf8").length,
     }));
+    KNOWLEDGE_CHUNKS = files.flatMap((file) => {
+      const content = readFileSync(`${KNOWLEDGE_DIR}/${file}`, "utf8");
+      return buildKnowledgeChunks(file, content);
+    });
     console.log(`[knowledge] Loaded ${files.length} knowledge files, total ${KNOWLEDGE_BASE.length} chars`);
   } catch (err) {
     console.log(`[knowledge] Could not load knowledge base: ${err.message}`);
     KNOWLEDGE_BASE = "";
     KNOWLEDGE_FILES = [];
+    KNOWLEDGE_CHUNKS = [];
   }
 }
 
@@ -529,6 +576,7 @@ function knowledgeLookup(context, args) {
   const query = normalizeText(args.query);
   const items = Array.isArray(context.filteredKnowledge) ? context.filteredKnowledge : [];
   const category = args.category ? normalizeText(args.category) : null;
+  const tokens = tokenizeQuery(args.query);
 
   const matched = items.filter((item) => {
     const text = [
@@ -545,11 +593,31 @@ function knowledgeLookup(context, args) {
     return categoryMatch && text.includes(query);
   });
 
+  const scoredChunks = KNOWLEDGE_CHUNKS
+    .map((chunk) => {
+      const titleMatch = chunk.title.toLowerCase().includes(query) ? 8 : 0;
+      const headingMatch = chunk.heading.toLowerCase().includes(query) ? 6 : 0;
+      const exactMatch = chunk.searchText.includes(query) ? 5 : 0;
+      const tokenScore = tokens.reduce((score, token) => score + (chunk.searchText.includes(token) ? 1 : 0), 0);
+      return { chunk, score: titleMatch + headingMatch + exactMatch + tokenScore };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8)
+    .map(({ chunk, score }) => ({
+      source: chunk.title,
+      filename: chunk.filename,
+      heading: chunk.heading,
+      score,
+      excerpt: excerptText(chunk.content),
+    }));
+
   return {
     query: args.query,
     category: args.category || null,
     matchedItems: matched.slice(0, 5),
-    total: matched.length,
+    matchedKnowledgeBase: scoredChunks,
+    total: matched.length + scoredChunks.length,
   };
 }
 
@@ -564,7 +632,7 @@ function poccVisitPrep(context, args) {
   const cases = industryCases(context, { industry: customer.industry }).matchedCases.slice(0, 3);
   const knowledge = knowledgeLookup(context, {
     query: `${customer.industry} ${customer.currentOpportunity} ${customer.opportunityStage}`,
-  }).matchedItems.slice(0, 5);
+  });
 
   const primaryContact = Array.isArray(customer.keyContacts) ? customer.keyContacts[0] : null;
 
@@ -575,11 +643,14 @@ function poccVisitPrep(context, args) {
     currentTask: tasks[0] || null,
     recentVisits: visits.slice(0, 3),
     matchedCases: cases,
-    matchedKnowledge: knowledge,
     suggestedGoals: {
       bestActionCommitment: `推进 ${customer.currentOpportunity} 的下一次方案评审或关键人会面`,
       minimumActionCommitment: "确认客户最新需求、预算边界和时间表",
     },
+    matchedKnowledge: [
+      ...knowledge.matchedItems.slice(0, 3),
+      ...knowledge.matchedKnowledgeBase.slice(0, 5),
+    ],
   };
 }
 
@@ -1105,7 +1176,7 @@ function extractFunctionCalls(response) {
 }
 
 function shouldInjectKnowledgeBase(message = "") {
-  return /知识库|话术|案例|行业|竞品|异议|方案库|成功案例|标杆|对比|know-?how/i.test(String(message));
+  return /知识库|话术|案例|行业|竞品|异议|方案库|成功案例|标杆|对比|know-?how|拜访|准备|pocc|BPIDC|N-SABE|LSCPA|开场|收官|价值|ROI|投资回报/i.test(String(message));
 }
 
 function instructionsForContext(context) {
@@ -1123,6 +1194,9 @@ function instructionsForContext(context) {
     "优先使用 tools 获取真实业务上下文，不要假设客户数据。",
     "回答要贴近一线销售拜访场景，默认使用中文。",
     "如果用户问具体客户、拜访频率、行业案例、话术、POCC 准备，请先调用对应 tool 再回答。",
+    "当用户问拜访准备、话术、异议处理、竞品对比、行业洞察、ROI、产品方案时，必须把拓斯达知识库检索结果和 POCC 方法论结合起来输出。",
+    "话术类输出优先给可复制表达，并按 PBC 开场、BPIDC 提问、N-SABE 价值呈现、LSCPA 异议处理、BAC/MAC 收官承诺组织。",
+    "引用知识库内容时要说明来自哪类知识底座或文档主题，不要编造未在客户数据或知识库中出现的案例数字。",
     "如果用户要求生成 Word，先调用 word_generator；如果工具结果包含 exportSpec.downloadUrl 或 artifact.url，必须在回答里给出 Markdown 下载链接，并说明这是可由 Word 打开的 .doc 文件。",
     "如果用户要求生成 PDF/PPT/Excel，先调用对应 generator tool 获取结构化内容，再明确说明当前返回的是可导出内容草稿/结构，除非工具结果包含真实下载地址，不要声称已生成真实文件。",
     "如果用户要求新增 agent 能力或设计 skill，先调用 skill_creator 输出 skill 规格。",
@@ -1814,7 +1888,14 @@ async function runAgentStream(body, runtime, res) {
     let response = await createOpenAIChatCompletionsStream({
       model: runtime.model,
       messages: baseMessages,
-      tools: TOOL_DEFINITIONS.map(tool => ({ type: "function", function: tool })),
+      tools: TOOL_DEFINITIONS.map(tool => ({
+        type: "function",
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.parameters,
+        },
+      })),
       tool_choice: "auto",
       temperature: 0.3,
     }, runtime, (delta) => sendEvent(res, "delta", { text: delta }));
@@ -1854,7 +1935,14 @@ async function runAgentStream(body, runtime, res) {
       response = await createOpenAIChatCompletionsStream({
         model: runtime.model,
         messages: baseMessages,
-        tools: TOOL_DEFINITIONS.map(tool => ({ type: "function", function: tool })),
+        tools: TOOL_DEFINITIONS.map(tool => ({
+          type: "function",
+          function: {
+            name: tool.name,
+            description: tool.description,
+            parameters: tool.parameters,
+          },
+        })),
         tool_choice: "auto",
         temperature: 0.3,
       }, runtime, (delta) => sendEvent(res, "delta", { text: delta }));
@@ -1963,6 +2051,37 @@ const server = createServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/api/knowledge") {
     sendJson(res, 200, {
       files: KNOWLEDGE_FILES,
+      totalChunks: KNOWLEDGE_CHUNKS.length,
+    });
+    return;
+  }
+
+  if (req.method === "GET" && req.url?.startsWith("/api/knowledge/search")) {
+    const requestUrl = new URL(req.url, `http://${req.headers.host || "127.0.0.1"}`);
+    const query = requestUrl.searchParams.get("q") || "";
+    const tokens = tokenizeQuery(query);
+    const normalizedQuery = normalizeSearchText(query);
+    const results = KNOWLEDGE_CHUNKS
+      .map((chunk) => {
+        const exactScore = normalizedQuery && chunk.searchText.includes(normalizedQuery) ? 5 : 0;
+        const tokenScore = tokens.reduce((score, token) => score + (chunk.searchText.includes(token) ? 1 : 0), 0);
+        return { chunk, score: exactScore + tokenScore };
+      })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 20)
+      .map(({ chunk, score }) => ({
+        source: chunk.title,
+        filename: chunk.filename,
+        heading: chunk.heading,
+        score,
+        excerpt: excerptText(chunk.content, 700),
+      }));
+
+    sendJson(res, 200, {
+      query,
+      total: results.length,
+      results,
     });
     return;
   }

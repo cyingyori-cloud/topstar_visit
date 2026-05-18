@@ -5,6 +5,7 @@ import { salesReps, SalesRep } from '../data/roles';
 import { normalizeCompanyNames } from '../utils/companyNames';
 import { TIER_RULES, INDUSTRY_CASES, SCRIPT_RULES, calcActivationScore } from '../data/skills';
 import { sendAgentChat, sendAgentChatStream, AgentRuntimeConfig } from '../services/agent';
+import { knowledgeDocumentItems } from '../data/knowledgeBase';
 
 interface ChatMessage {
   id: string;
@@ -206,7 +207,10 @@ function computeFiltered(rep: SalesRep) {
     3: ['all', 'sales'],                      // 销售人员：执行+通用
   };
   const allowedAudiences = audienceFilter[rep.level] || ['all'];
-  const fk = knowledgeItems.filter(k => allowedAudiences.includes(k.audience));
+  const fk = [
+    ...knowledgeDocumentItems,
+    ...knowledgeItems,
+  ].filter(k => allowedAudiences.includes(k.audience));
 
   return { fc, ft, fcv, fCoverage, fk };
 }
@@ -1246,32 +1250,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     triggerKnowledgeContext: (item) => {
-      const userMsg: ChatMessage = {
-        id: `msg-${++messageIdCounter}`,
-        role: 'user',
-        content: `展开话术：${item.title}`,
-        timestamp: new Date(),
-      };
-
-      const aiMsg: ChatMessage = {
-        id: `msg-${++messageIdCounter}`,
-        role: 'assistant',
-        content: `## 💡 ${normalizeCompanyNames(item.title)}\n\n**分类**：${item.category} | **标签**：${item.tags.join('、')}\n\n${normalizeCompanyNames(item.content)}`,
-        timestamp: new Date(),
-        quickActions: [
-          { label: '📋 复制内容', icon: '📋', action: 'copy' },
-          { label: '💾 保存到话术库', icon: '💾', action: 'save' },
-        ],
-        meta: {
-          source: 'fallback',
-        },
-      };
-
-      set((state) => ({ messages: [...state.messages, userMsg] }));
-      set({ isTyping: true });
-      setTimeout(() => {
-        set((state) => ({ messages: [...state.messages, aiMsg], isTyping: false }));
-      }, 800);
+      get().sendMessage(`结合拓斯达知识库《${item.title}》和 POCC 方法论，输出可用于客户拜访的关键洞察、开场话术、BPIDC提问链、N-SABE价值呈现和收官承诺。知识内容摘要：${item.content}`);
     },
 
     sendMessage: async (content) => {
