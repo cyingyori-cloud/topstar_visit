@@ -1624,6 +1624,8 @@ const server = createServer(async (req, res) => {
   sendJson(res, 404, { error: "Not found" });
 });
 
-server.listen(PORT, "127.0.0.1", () => {
-  console.log(`[topstar-agent] listening on http://127.0.0.1:${PORT}`);
+const HOST = process.env.HOST || "0.0.0.0";
+
+server.listen(PORT, HOST, () => {
+  console.log(`[topstar-agent] listening on http://${HOST}:${PORT}`);
 });
