@@ -4,7 +4,7 @@ import { customers, visitTasks, completedVisits, knowledgeItems, KnowledgeAudien
 import { salesReps, SalesRep } from '../data/roles';
 import { normalizeCompanyNames } from '../utils/companyNames';
 import { TIER_RULES, INDUSTRY_CASES, SCRIPT_RULES, calcActivationScore } from '../data/skills';
-import { sendAgentChat, sendAgentChatStream, AgentRuntimeConfig } from '../services/agent';
+import { sendAgentChat, AgentRuntimeConfig } from '../services/agent';
 
 interface ChatMessage {
   id: string;
@@ -1264,84 +1264,43 @@ export const useAppStore = create<AppState>((set, get) => {
       const state = get();
 
       if (state.agentEnabled) {
-        // 创建思考消息
-        const thinkingMsg: ChatMessage = {
-          id: `msg-${++messageIdCounter}`,
-          role: 'assistant',
-          content: '正在思考...',
-          timestamp: new Date(),
-          isStreaming: true,
-          thinkingSteps: [],
-        };
-        set({ thinkingMessage: thinkingMsg });
-
         try {
-          // 使用流式 API
-          await sendAgentChatStream(
-            {
-              message: content.trim(),
-              previousResponseId: state.previousResponseId,
-              context: buildAgentContext(state),
-              runtimeConfig: state.runtimeConfig,
+          const response = await sendAgentChat({
+            message: content.trim(),
+            previousResponseId: state.previousResponseId,
+            context: buildAgentContext(state),
+            runtimeConfig: state.runtimeConfig,
+          });
+
+          const aiMsg: ChatMessage = {
+            id: `msg-${++messageIdCounter}`,
+            role: 'assistant',
+            content: response.text,
+            timestamp: new Date(),
+            quickActions: response.quickActions,
+            meta: {
+              model: response.model,
+              toolCalls: response.toolCalls,
+              source: 'agent',
+              coachRole: response.coachMeta?.role ?? null,
+              coachMode: response.coachMeta?.mode ?? null,
+              coachDataLevel: response.coachMeta?.dataLevel ?? null,
+              provider: response.debugMeta?.provider ?? null,
+              apiMode: response.debugMeta?.apiMode ?? null,
+              endpoint: response.debugMeta?.endpoint ?? null,
             },
-            // 思考中回调
-            (thinkingText) => {
-              set((currentState) => ({
-                thinkingMessage: currentState.thinkingMessage
-                  ? {
-                      ...currentState.thinkingMessage,
-                      content: thinkingText,
-                      thinkingSteps: [...(currentState.thinkingMessage.thinkingSteps || []), thinkingText],
-                    }
-                  : null,
-              }));
-            },
-            // 工具调用回调
-            (toolName, result) => {
-              set((currentState) => ({
-                thinkingMessage: currentState.thinkingMessage
-                  ? {
-                      ...currentState.thinkingMessage,
-                      content: `调用工具: ${toolName}...`,
-                      thinkingSteps: [...(currentState.thinkingMessage.thinkingSteps || []), `🔧 ${toolName}`],
-                    }
-                  : null,
-              }));
-            },
-            // 完成回调
-            (finalText) => {
-              const aiMsg: ChatMessage = {
-                id: `msg-${++messageIdCounter}`,
-                role: 'assistant',
-                content: finalText,
-                timestamp: new Date(),
-                quickActions: [],
-                meta: { source: 'agent' },
-              };
-              set((currentState) => ({
-                messages: [...currentState.messages, aiMsg],
-                thinkingMessage: null,
-                isTyping: false,
-                previousResponseId: null,
-                lastAgentError: null,
-              }));
-            },
-            // 错误回调
-            (errorMsg) => {
-              set({
-                lastAgentError: errorMsg,
-                thinkingMessage: null,
-                isTyping: false,
-              });
-              // 回退到规则引擎
-              get().sendMessage(content);
-            }
-          );
+          };
+
+          set((currentState) => ({
+            messages: [...currentState.messages, aiMsg],
+            isTyping: false,
+            previousResponseId: response.responseId,
+            lastAgentError: null,
+          }));
           return;
         } catch (error) {
           set({
             lastAgentError: error instanceof Error ? error.message : 'Agent request failed',
-            thinkingMessage: null,
           });
         }
       }

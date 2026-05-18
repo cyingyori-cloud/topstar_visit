@@ -1052,7 +1052,7 @@ function buildDebugMeta(runtime) {
 }
 
 function sendEvent(res, event, data) {
-  res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  res.write(`event: ${event}\ndata: ${JSON.stringify({ type: event, ...data })}\n\n`);
 }
 
 // 流式 Agent：每一步都实时推送思考过程
