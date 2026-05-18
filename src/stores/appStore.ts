@@ -4,7 +4,7 @@ import { customers, visitTasks, completedVisits, knowledgeItems, KnowledgeAudien
 import { salesReps, SalesRep } from '../data/roles';
 import { normalizeCompanyNames } from '../utils/companyNames';
 import { TIER_RULES, INDUSTRY_CASES, SCRIPT_RULES, calcActivationScore } from '../data/skills';
-import { sendAgentChat, AgentRuntimeConfig } from '../services/agent';
+import { sendAgentChat, sendAgentChatStream, AgentRuntimeConfig } from '../services/agent';
 
 interface ChatMessage {
   id: string;
@@ -99,7 +99,21 @@ interface AppState {
 
 /* ---------- helpers ---------- */
 
-function getInitialMessages(repName: string, taskCount: number): ChatMessage[] {
+const DEFAULT_RUNTIME_CONFIG: AgentRuntimeConfig = {
+  provider: 'OpenAI / 兼容接口',
+  baseUrl: 'https://code.fwind.work',
+  model: 'gpt-5.5',
+  apiKey: 'sk-10f212a07f4d13cd0a024ce20f411fb04b6d7c9d76ca904767101dbefb4bd69b',
+  apiMode: 'chat_completions',
+};
+
+function getInitialMessages(
+  repName: string,
+  taskCount: number,
+  runtimeConfig: AgentRuntimeConfig | null = DEFAULT_RUNTIME_CONFIG,
+): ChatMessage[] {
+  const source = runtimeConfig ? 'agent' : 'fallback';
+
   return [
     {
       id: 'welcome',
@@ -139,7 +153,11 @@ function getInitialMessages(repName: string, taskCount: number): ChatMessage[] {
         { label: '🗣️ 话术推荐', icon: '🗣️', action: 'script_recommend' },
       ],
       meta: {
-        source: 'fallback',
+        source,
+        model: runtimeConfig?.model,
+        provider: runtimeConfig?.provider,
+        apiMode: runtimeConfig?.apiMode ?? null,
+        endpoint: runtimeConfig?.baseUrl ?? null,
       },
     },
   ];
@@ -1133,13 +1151,7 @@ export const useAppStore = create<AppState>((set, get) => {
     lastAgentError: null,
     modelConfigOpen: false,
     modelProviderLabel: 'OpenAI / 兼容接口',
-    runtimeConfig: {
-      provider: 'OpenAI / 兼容接口',
-      baseUrl: 'https://code.fwind.work',
-      model: 'gpt-5.5',
-      apiKey: 'sk-10f212a07f4d13cd0a024ce20f411fb04b6d7c9d76ca904767101dbefb4bd69b',
-      apiMode: 'chat_completions',
-    },
+    runtimeConfig: DEFAULT_RUNTIME_CONFIG,
     modelConnectionStatus: 'idle',
     modelConnectionMessage: null,
     taskPeriod: '本周',
@@ -1169,7 +1181,7 @@ export const useAppStore = create<AppState>((set, get) => {
         filteredCompletedVisits: f.fcv,
         filteredCoverage: f.fCoverage,
         filteredKnowledge: f.fk,
-        messages: getInitialMessages(rep.name, f.ft.length),
+        messages: getInitialMessages(rep.name, f.ft.length, get().runtimeConfig),
         selectedCustomerId: null,
         selectedCustomer: null,
         previousResponseId: null,
@@ -1264,43 +1276,78 @@ export const useAppStore = create<AppState>((set, get) => {
       const state = get();
 
       if (state.agentEnabled) {
+        // 创建思考消息
+        const thinkingMsg: ChatMessage = {
+          id: `msg-${++messageIdCounter}`,
+          role: 'assistant',
+          content: '正在思考...',
+          timestamp: new Date(),
+          isStreaming: true,
+          thinkingSteps: [],
+        };
+        set({ thinkingMessage: thinkingMsg });
+
         try {
-          const response = await sendAgentChat({
-            message: content.trim(),
-            previousResponseId: state.previousResponseId,
-            context: buildAgentContext(state),
-            runtimeConfig: state.runtimeConfig,
-          });
-
-          const aiMsg: ChatMessage = {
-            id: `msg-${++messageIdCounter}`,
-            role: 'assistant',
-            content: response.text,
-            timestamp: new Date(),
-            quickActions: response.quickActions,
-            meta: {
-              model: response.model,
-              toolCalls: response.toolCalls,
-              source: 'agent',
-              coachRole: response.coachMeta?.role ?? null,
-              coachMode: response.coachMeta?.mode ?? null,
-              coachDataLevel: response.coachMeta?.dataLevel ?? null,
-              provider: response.debugMeta?.provider ?? null,
-              apiMode: response.debugMeta?.apiMode ?? null,
-              endpoint: response.debugMeta?.endpoint ?? null,
+          await sendAgentChatStream(
+            {
+              message: content.trim(),
+              previousResponseId: state.previousResponseId,
+              context: buildAgentContext(state),
+              runtimeConfig: state.runtimeConfig,
             },
-          };
-
-          set((currentState) => ({
-            messages: [...currentState.messages, aiMsg],
-            isTyping: false,
-            previousResponseId: response.responseId,
-            lastAgentError: null,
-          }));
+            (thinkingText) => {
+              set((currentState) => ({
+                thinkingMessage: currentState.thinkingMessage
+                  ? {
+                      ...currentState.thinkingMessage,
+                      content: thinkingText,
+                      thinkingSteps: [...(currentState.thinkingMessage.thinkingSteps || []), thinkingText],
+                    }
+                  : null,
+              }));
+            },
+            (toolName, result) => {
+              set((currentState) => ({
+                thinkingMessage: currentState.thinkingMessage
+                  ? {
+                      ...currentState.thinkingMessage,
+                      content: `调用工具: ${toolName}...`,
+                      thinkingSteps: [...(currentState.thinkingMessage.thinkingSteps || []), `🔧 ${toolName}`],
+                    }
+                  : null,
+              }));
+            },
+            (finalText) => {
+              const aiMsg: ChatMessage = {
+                id: `msg-${++messageIdCounter}`,
+                role: 'assistant',
+                content: finalText,
+                timestamp: new Date(),
+                quickActions: [],
+                meta: { source: 'agent' },
+              };
+              set((currentState) => ({
+                messages: [...currentState.messages, aiMsg],
+                thinkingMessage: null,
+                isTyping: false,
+                previousResponseId: null,
+                lastAgentError: null,
+              }));
+            },
+            (errorMsg) => {
+              set({
+                lastAgentError: errorMsg,
+                thinkingMessage: null,
+                isTyping: false,
+              });
+              get().sendMessage(content);
+            }
+          );
           return;
         } catch (error) {
           set({
             lastAgentError: error instanceof Error ? error.message : 'Agent request failed',
+            thinkingMessage: null,
           });
         }
       }
@@ -1324,9 +1371,9 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     clearMessages: () => {
-      const { currentRep, filteredTasks } = get();
+      const { currentRep, filteredTasks, runtimeConfig } = get();
       set({
-        messages: getInitialMessages(currentRep.name, filteredTasks.length),
+        messages: getInitialMessages(currentRep.name, filteredTasks.length, runtimeConfig),
         previousResponseId: null,
         lastAgentError: null,
       });

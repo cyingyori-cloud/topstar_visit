@@ -20,10 +20,10 @@ export default function CoverageRate() {
   const strokeDasharray = `${(overallPct / 100) * circumference} ${circumference}`;
 
   return (
-    <div className="bg-white rounded-lg" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-      <div className="flex items-center justify-between px-4 py-3 cursor-pointer select-none" style={{ backgroundColor: '#6B7280' }} onClick={() => setCollapsed(!collapsed)}>
+    <div className="board-panel">
+      <div className="board-panel-header flex items-center justify-between px-4 py-3 cursor-pointer select-none" onClick={() => setCollapsed(!collapsed)}>
         <div className="flex items-center gap-2">
-          <BarChart3 className="w-4.5 h-4.5" style={{ color: '#93C5FD' }} />
+          <BarChart3 className="w-4.5 h-4.5" style={{ color: '#B9D7F0' }} />
           <span className="font-medium text-sm text-white">拜访覆盖率</span>
         </div>
         <div className="relative">
@@ -35,7 +35,7 @@ export default function CoverageRate() {
             <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-20 min-w-[80px]">
               {periods.map(p => (
                 <button key={p} className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50"
-                  style={{ color: p === coveragePeriod ? '#1B6EF3' : '#1F2329' }}
+                  style={{ color: p === coveragePeriod ? '#1F5F99' : '#1F2329' }}
                   onClick={(e) => { e.stopPropagation(); setCoveragePeriod(p); setShowPeriodMenu(false); }}>{p}</button>
               ))}
             </div>

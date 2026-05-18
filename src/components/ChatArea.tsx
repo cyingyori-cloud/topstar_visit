@@ -27,6 +27,7 @@ export default function ChatArea() {
   const {
     messages,
     isTyping,
+    thinkingMessage,
     sendMessage,
     agentEnabled,
     lastAgentError,
@@ -50,6 +51,10 @@ export default function ChatArea() {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const lastAssistant = [...messages].reverse().find(msg => msg.role === 'assistant');
   const agentMeta = lastAssistant?.meta;
+  const activeSource = agentEnabled && runtimeConfig && !lastAgentError
+    ? 'agent'
+    : agentMeta?.source;
+  const activeModel = agentMeta?.model || runtimeConfig?.model || modelProviderLabel || 'OpenAI';
   const coachBadge = agentMeta?.coachMode ? `Coach · ${agentMeta.coachMode}` : null;
 
   // 初始化时从 store 同步配置到 draft（不再覆盖默认值）
@@ -132,12 +137,12 @@ export default function ChatArea() {
           <span
             className="text-[10px] px-1.5 py-0.5 rounded-full"
             style={{
-              backgroundColor: agentMeta?.source === 'agent' ? 'rgba(82,196,26,0.12)' : 'rgba(245,166,35,0.12)',
-              color: agentMeta?.source === 'agent' ? '#389E0D' : '#D48806',
+              backgroundColor: activeSource === 'agent' ? 'rgba(82,196,26,0.12)' : 'rgba(245,166,35,0.12)',
+              color: activeSource === 'agent' ? '#389E0D' : '#D48806',
             }}
           >
-            {agentMeta?.source === 'agent'
-              ? `AI · ${agentMeta.model || runtimeConfig?.model || 'OpenAI'}`
+            {activeSource === 'agent'
+              ? `AI · ${activeModel}`
               : '本地规则'
             }
           </span>
@@ -160,7 +165,7 @@ export default function ChatArea() {
             style={{ color: '#5A5A5A' }}
           >
             <Sparkles className="w-3 h-3" style={{ color: '#1B6EF3' }} />
-            {agentMeta?.source === 'agent' ? '切换模型' : '启用 AI'}
+            {activeSource === 'agent' ? '切换模型' : '启用 AI'}
             <ChevronDown className="w-3 h-3" />
           </button>
           {showModelMenu && (
@@ -196,8 +201,46 @@ export default function ChatArea() {
           <MessageBubble key={msg.id} message={msg} />
         ))}
 
-        {/* Typing indicator */}
-        {isTyping && (
+        {/* 流式思考消息 */}
+        {thinkingMessage && (
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #1B6EF3, #7C3AED)' }}>
+              <Bot className="w-4 h-4 text-white" />
+            </div>
+            <div className="px-4 py-3 rounded-xl max-w-[80%]" style={{ backgroundColor: '#F5F7FA', borderTopLeftRadius: '4px' }}>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" style={{ animationDelay: '150ms' }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" style={{ animationDelay: '300ms' }} />
+                </div>
+                <span className="text-xs font-medium" style={{ color: '#1B6EF3' }}>正在思考</span>
+              </div>
+              <div className="text-sm" style={{ color: '#1F2329' }}>
+                {thinkingMessage.content}
+              </div>
+              {thinkingMessage.thinkingSteps && thinkingMessage.thinkingSteps.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-gray-200">
+                  <div className="text-xs" style={{ color: '#8F959E' }}>已执行步骤：</div>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {thinkingMessage.thinkingSteps.slice(-5).map((step, idx) => (
+                      <span
+                        key={idx}
+                        className="text-xs px-2 py-0.5 rounded"
+                        style={{ backgroundColor: 'rgba(27,110,243,0.08)', color: '#1B6EF3' }}
+                      >
+                        {step}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 普通加载指示器 */}
+        {isTyping && !thinkingMessage && (
           <div className="flex items-start gap-3 mb-4">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #1B6EF3, #7C3AED)' }}>
               <Bot className="w-4 h-4 text-white" />

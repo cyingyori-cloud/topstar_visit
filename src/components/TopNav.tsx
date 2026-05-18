@@ -10,7 +10,7 @@ const navItems = [
   { label: '经营复盘', icon: BarChart3 },
 ];
 
-const roleColor = '#1B6EF3';
+const roleColor = '#1F5F99';
 
 export default function TopNav() {
   const { activeNav, setActiveNav, currentRep, switchRep } = useAppStore();
@@ -18,10 +18,10 @@ export default function TopNav() {
 
   return (
     <>
-      <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-5 flex-shrink-0" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+      <header className="h-14 border-b flex items-center justify-between px-5 flex-shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.94)', borderColor: 'rgba(148,163,184,0.28)', boxShadow: '0 10px 28px rgba(15,23,42,0.06)' }}>
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #1B6EF3, #4A90D9)' }}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #123B63, #2A6F9E)' }}>
               <Factory className="w-5 h-5 text-white" />
             </div>
             <span className="text-base font-semibold" style={{ color: '#1F2329' }}>TopStar Visit AI</span>
@@ -100,8 +100,8 @@ export default function TopNav() {
                   onClick={() => setActiveNav(item.label)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition-all duration-200"
                   style={{
-                    color: isActive ? '#1B6EF3' : '#5A5A5A',
-                    backgroundColor: isActive ? 'rgba(27,110,243,0.08)' : 'transparent',
+                    color: isActive ? '#123B63' : '#526173',
+                    backgroundColor: isActive ? 'rgba(31,95,153,0.10)' : 'transparent',
                     fontWeight: isActive ? 500 : 400,
                   }}
                 >

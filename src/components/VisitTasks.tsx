@@ -8,6 +8,38 @@ import { getFullCompanyName } from '../utils/companyNames';
 
 const periods = ['本日', '本周', '本月'];
 
+const opportunityStageGuide: Record<string, string> = {
+  '“收”线索': '维护私海人脉与本地关系，持续收集客户动态、设备更换信号和竞对信息。',
+  '“查”信息': '核实设备现状、工艺痛点、品质要求、开机率和投产节奏，补齐客户资料。',
+  '“获”商机': '识别需求条件，明确组织对接记录，录入商机并完成 SWOT 诊断。',
+  '“做”客情': '发展内线/教练，私下交流决策链与商务互动，做深关键联系人关系。',
+  '“观”案例': '邀约客户参观样板案例、公司或区域活动，强化同行成功预期。',
+  '“报”价值': '诊断条件并引导需求，制定标准、汇报方案、放大价值并维护商机明细。',
+  '“约”高层': '约访决策人，安排高层会晤和参访陪同，推动决策人支持态度。',
+  '“定”商务': '制定竞对策略，展示附加值，明确报价策略、技术协议和签约日期。',
+  '“签”合同': '确认合同模板、商务条款和定金安排，完成合同原件与 CRM 录入。',
+  '“收”全款': '检查交付与服务，核对对账单和付款记录，推动订单回款闭环。',
+};
+
+function getOpportunityStageText(customer: any, hasOpportunity: boolean, task?: any) {
+  if (!hasOpportunity || !customer) {
+    return {
+      title: '商机阶段：机会识别',
+      detail: task?.visitFocus || task?.visitGoal || '当前重点是建立关系、摸清产线痛点与潜在切入口，判断是否进入商机。',
+    };
+  }
+
+  const stage = customer.opportunityStage || '待确认';
+  const percent = Number.isFinite(customer.opportunityPercent) ? `${customer.opportunityPercent}%` : '待补充';
+  const guide = opportunityStageGuide[stage] || '围绕当前阶段确认关键节点、责任人、下一步动作和客户承诺。';
+  const businessFact = customer.opportunityDescription || task?.visitGoal || task?.visitFocus || '';
+  const nextAction = task?.expectedCommitment ? `下一步：${task.expectedCommitment}` : guide;
+  return {
+    title: `商机阶段：${stage} ${percent}`,
+    detail: businessFact ? `${businessFact}。${nextAction}` : nextAction,
+  };
+}
+
 /* 计算距上次拜访天数 */
 function getDaysSinceLastVisit(customerId: string): number {
   const visits = completedVisits.filter(v => v.customerId === customerId);
@@ -71,14 +103,13 @@ export default function VisitTasks() {
         <PendingConfirmationSection tasks={pendingConfirmTasks} onConfirm={setConfirmTask} />
       )}
 
-      <div className="bg-white rounded-lg" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+      <div className="board-panel">
       <div
-        className="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
-        style={{ backgroundColor: '#6B7280' }}
+        className="board-panel-header flex items-center justify-between px-4 py-3 cursor-pointer select-none"
         onClick={() => setCollapsed(!collapsed)}
       >
           <div className="flex items-center gap-2">
-            <ClipboardList className="w-4.5 h-4.5" style={{ color: '#1B6EF3' }} />
+            <ClipboardList className="w-4.5 h-4.5" style={{ color: '#B9D7F0' }} />
             <span className="font-medium text-sm text-white">本周拜访任务</span>
             <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(27,110,243,0.08)', color: '#1B6EF3' }}>{activeTasks.length}</span>
             {overdueCount > 0 && (
@@ -157,8 +188,8 @@ export default function VisitTasks() {
 
 function PendingConfirmationSection({ tasks, onConfirm }: { tasks: any[]; onConfirm: (task: any) => void }) {
   return (
-    <div className="bg-white rounded-lg border overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)', borderColor: '#F59E0B' }}>
-      <div className="flex items-center justify-between px-4 py-3" style={{ backgroundColor: '#6B7280' }}>
+    <div className="board-panel">
+      <div className="board-panel-header flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2 flex-wrap">
           <div className="text-sm font-semibold text-white">🔔 待确认拜访提醒</div>
           <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}>
@@ -169,9 +200,11 @@ function PendingConfirmationSection({ tasks, onConfirm }: { tasks: any[]; onConf
           </span>
         </div>
       </div>
-      <div className="divide-y divide-amber-100">
+      <div className="divide-y" style={{ borderColor: '#E8EDF4' }}>
         {tasks.map(task => {
           const hasOpportunity = task.opportunityIntent !== 'no_opportunity';
+          const customer = customers.find(c => c.id === task.customerId);
+          const stageText = getOpportunityStageText(customer, hasOpportunity, task);
           return (
             <div key={task.id} className="px-4 py-3">
               <div className="flex items-start justify-between gap-3">
@@ -198,9 +231,9 @@ function PendingConfirmationSection({ tasks, onConfirm }: { tasks: any[]; onConf
                     </div>
                     <div className="rounded-lg px-2.5 py-2" style={{ backgroundColor: '#FFFBEB', border: '1px solid #FDE68A' }}>
                       <div className="text-xs font-semibold mb-1" style={{ color: '#B45309' }}>
-                        {hasOpportunity ? '本次内容：确认节点' : '本次内容：建立关系'}
+                        {stageText.title}
                       </div>
-                      <div className="text-xs leading-relaxed" style={{ color: '#475569' }}>{task.expectedCommitment}</div>
+                      <div className="text-xs leading-relaxed" style={{ color: '#475569' }}>{stageText.detail}</div>
                     </div>
                   </div>
                   <div className="text-xs leading-relaxed" style={{ color: '#8F959E' }}>
@@ -359,21 +392,23 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
   const opportunityStage = hasOpportunity ? (customer?.opportunityStage || '待确认') : '机会识别';
   const opportunityProgress = hasOpportunity && customer ? `${customer.opportunityPercent}%` : '待识别';
   const opportunityAmount = hasOpportunity && customer ? `¥${customer.opportunityAmount}万` : '-';
+  const stageText = getOpportunityStageText(customer, hasOpportunity, task);
 
   const handleMouseEnter = () => { if (hideTimer.current) clearTimeout(hideTimer.current); setShowHistory(true); };
   const handleMouseLeave = () => { hideTimer.current = setTimeout(() => setShowHistory(false), 200); };
 
   return (
     <div
-      className="group relative rounded-2xl cursor-pointer transition-all duration-200 hover:shadow-lg border overflow-hidden"
+      className="group relative rounded-xl cursor-pointer transition-all duration-200 hover:shadow-lg border overflow-hidden"
       style={{
         backgroundColor: '#FFFFFF',
         borderColor: overdue.status !== 'normal' ? overdue.color : `${cardBorder}55`,
         borderWidth: '1px',
+        boxShadow: '0 12px 30px rgba(15,23,42,0.06)',
       }}
       onClick={() => onTaskClick(task)}
     >
-      <div className="px-3 py-3 border-b" style={{ borderColor: `${cardBorder}28`, backgroundColor: `${cardBorder}0F` }}>
+      <div className="px-3 py-3 border-b" style={{ borderColor: `${cardBorder}28`, background: `linear-gradient(135deg, ${cardBorder}12, #FFFFFF 74%)` }}>
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start gap-2 min-w-0">
             <CustomerBadge level={task.customerLevel} />
@@ -436,10 +471,10 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
         <div className="grid grid-cols-[1.2fr_0.8fr] gap-3">
           <div className="min-w-0 space-y-2">
             <div
-              className="rounded-xl px-3 py-2 border"
+              className="rounded-lg px-3 py-2 border"
               style={{
-                backgroundColor: hasOpportunity ? '#F0FDF4' : '#EFF6FF',
-                borderColor: hasOpportunity ? '#86EFAC' : '#BFDBFE',
+                backgroundColor: hasOpportunity ? '#F7FBF8' : '#F7FAFD',
+                borderColor: hasOpportunity ? '#B7D9C2' : '#C8D7EA',
               }}
             >
               <div className="flex items-center justify-between gap-2 mb-1">
@@ -482,7 +517,7 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
 
         <div className="grid grid-cols-2 gap-3">
           {/* 左下：推荐拜访原因 */}
-          <div className="rounded-xl px-2.5 py-2" style={{ backgroundColor: `${cardBorder}0D`, border: `1px solid ${cardBorder}24` }}>
+          <div className="rounded-lg px-2.5 py-2" style={{ backgroundColor: `${cardBorder}0D`, border: `1px solid ${cardBorder}24` }}>
             <div className="flex items-center gap-1.5 mb-1">
               <span className="text-xs font-semibold" style={{ color: cardBorder }}>推荐拜访原因</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: '#FFF', color: cardBorder }}>AI建议</span>
@@ -493,12 +528,12 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
           </div>
 
           {/* 右下：推进重点 */}
-          <div className="rounded-xl px-2.5 py-2 border" style={{ backgroundColor: '#FAFBFC', borderColor: '#E5E7EB' }}>
+          <div className="rounded-lg px-2.5 py-2 border" style={{ backgroundColor: '#FAFBFC', borderColor: '#D7DEE8' }}>
             <div className="flex items-center gap-1.5 mb-1">
-              <span className="text-xs font-semibold" style={{ color: '#6B7280' }}>{hasOpportunity ? '推进重点' : '线索目标'}</span>
+              <span className="text-xs font-semibold" style={{ color: '#475569' }}>{hasOpportunity ? stageText.title : '商机阶段：机会识别'}</span>
             </div>
             <div className="text-xs leading-relaxed" style={{ color: '#4B5563' }}>
-              {hasOpportunity ? (task.expectedCommitment || `${opportunityMain}当前处于${opportunityStage}，需确认下一步动作。`) : '本次重点不是推进报价，而是建立关系、摸清产线痛点与潜在切入口。'}
+              {stageText.detail}
             </div>
           </div>
         </div>

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useAppStore } from './stores/appStore';
 import TopNav from './components/TopNav';
 import VisitTasks from './components/VisitTasks';
@@ -18,8 +19,27 @@ export default function App() {
   const isVisitEnablement = activeNav === '拜访赋能' || activeNav === '知识库';
   const isBusinessReview = activeNav === '经营复盘' || activeNav === '统计';
 
+  useEffect(() => {
+    const hideDriverStatus = () => {
+      const nodes = Array.from(document.body.querySelectorAll('div, span, button'));
+      nodes.forEach((node) => {
+        const text = node.textContent?.trim() || '';
+        if (!text.includes('ljq_driver') || !text.includes('已连接')) return;
+        const style = window.getComputedStyle(node);
+        if (style.position === 'fixed' || style.position === 'sticky') {
+          (node as HTMLElement).style.display = 'none';
+        }
+      });
+    };
+
+    hideDriverStatus();
+    const observer = new MutationObserver(hideDriverStatus);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden" style={{ backgroundColor: '#F5F7FA' }}>
+    <div className="h-screen w-screen flex flex-col overflow-hidden app-shell">
       <TopNav />
 
       {isCustomerOverview && (

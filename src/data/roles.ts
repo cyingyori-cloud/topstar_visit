@@ -33,7 +33,7 @@ export const salesReps: SalesRep[] = [
     name: '张三',
     role: '华南一区销售',
     level: 3,
-    customerIds: ['c1','c3','c5','c7','c8','c11','c14','c16','c19','c21','c23','c25','c27','c29'],
+    customerIds: ['c1','c3','c5','c7','c8','c11','c14','c16','c19','c20b','c21','c23','c25','c27','c29'],
   },
   {
     id: 'rep3',

@@ -5,6 +5,8 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color: #1F2937;
+  background: #EEF2F7;
 }
 
 /* Scrollbar styling */
@@ -18,7 +20,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: #AEB8C6;
   border-radius: 10px;
 }
 
@@ -44,6 +46,29 @@ textarea::placeholder {
 /* Smooth transitions */
 * {
   scroll-behavior: smooth;
+}
+
+.app-shell {
+  background:
+    radial-gradient(circle at 14% -10%, rgba(44, 85, 128, 0.10), transparent 34%),
+    linear-gradient(180deg, #F6F8FB 0%, #EEF2F7 48%, #E8EDF4 100%);
+}
+
+.business-surface {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+}
+
+.board-panel {
+  background: #FFFFFF;
+  border: 1px solid #D7DEE8;
+  border-radius: 8px;
+  box-shadow: 0 16px 35px rgba(15, 23, 42, 0.07);
+}
+
+.board-panel-header {
+  background: linear-gradient(135deg, #24364A, #3A526B);
 }
 
 /* Custom bounce animation for typing dots */

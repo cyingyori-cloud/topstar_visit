@@ -20,14 +20,13 @@ export default function KnowledgePanel() {
     : hotItems;
 
   return (
-    <div className="bg-white rounded-lg" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+    <div className="board-panel">
       <div
-        className="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
-        style={{ backgroundColor: '#6B7280' }}
+        className="board-panel-header flex items-center justify-between px-4 py-3 cursor-pointer select-none"
         onClick={() => setCollapsed(!collapsed)}
       >
         <div className="flex items-center gap-2">
-          <Lightbulb className="w-4.5 h-4.5" style={{ color: '#FCD34D' }} />
+          <Lightbulb className="w-4.5 h-4.5" style={{ color: '#B9D7F0' }} />
           <span className="font-medium text-sm text-white">行业知识 & 话术</span>
         </div>
         <button

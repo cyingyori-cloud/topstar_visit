@@ -188,24 +188,32 @@ export async function sendAgentChatStream(
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
+      // 按双换行分割事件
+      const events = buffer.split('\n\n');
+      buffer = events.pop() || '';
 
-      for (const line of lines) {
-        if (line.startsWith("event: ")) {
-          const event = line.slice(7);
-          continue;
+      for (const eventBlock of events) {
+        const lines = eventBlock.split('\n');
+        let eventType = '';
+        let dataContent = '';
+
+        for (const line of lines) {
+          if (line.startsWith('event:')) {
+            eventType = line.slice(6).trim();
+          } else if (line.startsWith('data:')) {
+            dataContent = line.slice(6);
+          }
         }
-        if (line.startsWith("data: ")) {
-          const data = line.slice(6);
+
+        if (dataContent) {
           try {
-            const parsed = JSON.parse(data);
-            if (parsed.type === "thinking") {
-              onThinking(parsed.text);
-            } else if (parsed.type === "tool") {
-              onToolCall(parsed.name, parsed.result);
-            } else if (parsed.type === "done") {
-              onDone(parsed.text);
+            const parsed = JSON.parse(dataContent);
+            if (eventType === 'thinking') {
+              onThinking(parsed.text || '');
+            } else if (eventType === 'tool') {
+              onToolCall(parsed.name || '', parsed.result);
+            } else if (eventType === 'done') {
+              onDone(parsed.text || '');
             }
           } catch {}
         }

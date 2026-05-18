@@ -53,21 +53,21 @@ export default function MarkdownRenderer({ content }: Props) {
         ),
         table: ({ children }) => (
           <div className="overflow-x-auto my-2">
-            <table className="w-full text-xs border-collapse rounded-lg overflow-hidden" style={{ border: '1px solid #E5E7EB' }}>
+            <table className="w-full text-xs border-collapse rounded-lg overflow-hidden" style={{ border: '1px solid #D7DEE8', boxShadow: '0 8px 20px rgba(15,23,42,0.05)' }}>
               {children}
             </table>
           </div>
         ),
         thead: ({ children }) => (
-          <thead style={{ backgroundColor: 'rgba(27,110,243,0.06)' }}>{children}</thead>
+          <thead style={{ backgroundColor: '#EDF3F8' }}>{children}</thead>
         ),
         th: ({ children }) => (
-          <th className="px-3 py-2 text-left font-medium border-b" style={{ borderColor: '#E5E7EB', color: '#1F2329' }}>
+          <th className="px-3 py-2 text-left font-semibold border-b" style={{ borderColor: '#D7DEE8', color: '#24364A' }}>
             {children}
           </th>
         ),
         td: ({ children }) => (
-          <td className="px-3 py-1.5 border-b" style={{ borderColor: '#F0F0F0', color: '#5A5A5A' }}>
+          <td className="px-3 py-1.5 border-b" style={{ borderColor: '#E8EDF4', color: '#465568' }}>
             {children}
           </td>
         ),
