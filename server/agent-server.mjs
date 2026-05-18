@@ -1038,6 +1038,44 @@ function getWordGeneratorPreview(result) {
     : null;
 }
 
+function shouldForceWordGeneration(message = "") {
+  return /生成\s*word|导出\s*word|转\s*word|word\s*文档|生成\s*文档|导出\s*文档|docx?/i.test(String(message));
+}
+
+function inferWordArgs(body) {
+  const context = body.context || {};
+  const customer = context.selectedCustomer || (Array.isArray(context.filteredCustomers) ? context.filteredCustomers[0] : null);
+  const message = String(body.message || "");
+  const documentType = /纪要/.test(message)
+    ? "拜访纪要"
+    : /方案/.test(message)
+      ? "客户方案"
+      : /报告|汇报/.test(message)
+        ? "业务报告"
+        : "Word文档";
+
+  return {
+    documentType,
+    customerId: customer?.id,
+    customerName: customer?.name,
+    topic: customer?.name ? `${customer.name}${documentType}` : documentType,
+  };
+}
+
+function buildForcedWordResult(body, runtime, builtInstructions = { coachMeta: null }) {
+  const result = executeLocalTool("word_generator", inferWordArgs(body), body.context || {});
+  const wrapped = { source: "local", data: result };
+  return {
+    responseId: null,
+    model: runtime.model,
+    text: getWordGeneratorPreview(wrapped) || "Word 文档已生成，但没有成功生成预览。",
+    toolCalls: ["word_generator"],
+    quickActions: quickActionsForTools(["word_generator"]),
+    coachMeta: builtInstructions.coachMeta || null,
+    debugMeta: buildDebugMeta(runtime),
+  };
+}
+
 function extractResponseText(response) {
   if (typeof response.output_text === "string" && response.output_text.trim()) {
     return response.output_text.trim();
@@ -1066,8 +1104,12 @@ function extractFunctionCalls(response) {
   return output.filter((item) => item.type === "function_call");
 }
 
+function shouldInjectKnowledgeBase(message = "") {
+  return /知识库|话术|案例|行业|竞品|异议|方案库|成功案例|标杆|对比|know-?how/i.test(String(message));
+}
+
 function instructionsForContext(context) {
-  const knowledgeSection = KNOWLEDGE_BASE
+  const knowledgeSection = KNOWLEDGE_BASE && shouldInjectKnowledgeBase(context.userMessage || "")
     ? `\n\n## 拓斯达行业知识库\n\n以下是拓斯达销售必须掌握的行业Know-How，在回答客户问题、推荐话术、分析竞品时，请优先使用这些知识：\n\n${KNOWLEDGE_BASE}\n`
     : "";
 
@@ -1091,7 +1133,10 @@ function instructionsForContext(context) {
 }
 
 async function buildInstructions(body) {
-  const base = instructionsForContext(body.context || {});
+  const base = instructionsForContext({
+    ...(body.context || {}),
+    userMessage: body.message || "",
+  });
   if (!shouldUseVisitCoach(body.message, body.context || {})) {
     return {
       text: base,
@@ -1377,6 +1422,10 @@ function quickActionsForTools(toolNames) {
 async function runAgent(body) {
   const runtime = resolveProviderRuntime(body);
   const builtInstructions = await buildInstructions(body);
+  if (shouldForceWordGeneration(body.message)) {
+    return buildForcedWordResult(body, runtime, builtInstructions);
+  }
+
   const requestBody = {
     ...body,
     instructionsText: builtInstructions.text,
@@ -1607,6 +1656,14 @@ function sendEvent(res, event, data) {
 // 流式 Agent：每一步都实时推送思考过程
 async function runAgentStream(body, runtime, res) {
   const builtInstructions = await buildInstructions(body);
+  if (shouldForceWordGeneration(body.message)) {
+    sendEvent(res, "thinking", { text: "正在生成 Word 文档..." });
+    const result = buildForcedWordResult(body, runtime, builtInstructions);
+    sendEvent(res, "tool", { name: "word_generator", result });
+    sendEvent(res, "done", { text: result.text });
+    res.end();
+    return;
+  }
 
   if (runtime.provider === "anthropic") {
     let messages = [{ role: "user", content: body.message }];
