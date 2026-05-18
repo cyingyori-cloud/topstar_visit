@@ -214,10 +214,15 @@ function computeFiltered(rep: SalesRep) {
 let messageIdCounter = 0;
 
 function buildAgentContext(state: AppState) {
+  const lastAssistantText = [...state.messages]
+    .reverse()
+    .find(message => message.role === 'assistant' && message.meta?.source === 'agent' && message.content.trim());
+
   return {
     currentDate: new Date().toISOString().slice(0, 10),
     currentRep: state.currentRep,
     activeNav: state.activeNav,
+    lastAssistantText: lastAssistantText?.content || null,
     selectedCustomerId: state.selectedCustomerId,
     selectedCustomer: state.selectedCustomer,
     filteredCustomers: state.filteredCustomers,

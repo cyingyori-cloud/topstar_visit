@@ -20,6 +20,7 @@ export interface AgentContextPayload {
   currentDate: string;
   currentRep: SalesRep;
   activeNav: string;
+  lastAssistantText?: string | null;
   selectedCustomerId: string | null;
   selectedCustomer: Customer | null;
   filteredCustomers: Customer[];

@@ -734,6 +734,41 @@ function renderWordHtml({ title, documentType, business, sections }) {
 </html>`;
 }
 
+function renderMarkdownAsWordHtml({ title, documentType, markdownText }) {
+  const now = new Date().toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" });
+  const lines = String(markdownText || "").split(/\r?\n/);
+  const body = lines.map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return "<p>&nbsp;</p>";
+    if (trimmed.startsWith("### ")) return `<h3>${escapeHtml(trimmed.slice(4))}</h3>`;
+    if (trimmed.startsWith("## ")) return `<h2>${escapeHtml(trimmed.slice(3))}</h2>`;
+    if (trimmed.startsWith("# ")) return `<h1>${escapeHtml(trimmed.slice(2))}</h1>`;
+    if (/^[-*]\s+/.test(trimmed)) return `<p>• ${escapeHtml(trimmed.replace(/^[-*]\s+/, ""))}</p>`;
+    if (/^\d+\.\s+/.test(trimmed)) return `<p>${escapeHtml(trimmed)}</p>`;
+    return `<p>${escapeHtml(trimmed)}</p>`;
+  }).join("\n");
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    body { font-family: "Microsoft YaHei", Arial, sans-serif; color: #1f2937; line-height: 1.65; }
+    h1 { color: #17365d; font-size: 24px; border-bottom: 2px solid #17365d; padding-bottom: 8px; }
+    h2 { color: #24486f; font-size: 18px; margin-top: 22px; }
+    h3 { color: #315f8f; font-size: 15px; margin-top: 16px; }
+    p { font-size: 12pt; margin: 6px 0; }
+    .meta { color: #4b5563; font-size: 10.5pt; margin-bottom: 18px; }
+  </style>
+</head>
+<body>
+  <p class="meta">生成时间：${escapeHtml(now)}｜文档类型：${escapeHtml(documentType || "Word 文档")}</p>
+  ${body}
+</body>
+</html>`;
+}
+
 function renderWordMarkdown({ title, documentType, business, sections, artifact }) {
   const metaRows = [
     ["客户", business.customer?.name || "未指定"],
@@ -777,10 +812,48 @@ function createWordArtifact({ title, documentType, business, sections }) {
   };
 }
 
+function createWordArtifactFromMarkdown({ title, documentType, markdownText }) {
+  mkdirSync(ARTIFACT_DIR, { recursive: true });
+  const filenameBase = sanitizeFilename(title);
+  const filename = `${Date.now()}-${filenameBase}.doc`;
+  const filePath = join(ARTIFACT_DIR, filename);
+  writeFileSync(filePath, renderMarkdownAsWordHtml({ title, documentType, markdownText }), "utf8");
+  return {
+    filename,
+    url: `${PUBLIC_AGENT_BASE_URL}/artifacts/${encodeURIComponent(filename)}`,
+    mimeType: "application/msword",
+  };
+}
+
 function wordGenerator(context, args) {
   const business = buildBusinessContext(context, args);
   const customer = business.customer;
   const title = args.topic || `${customer?.name || "客户"}${args.documentType}`;
+  const sourceText = typeof context.lastAssistantText === "string" ? context.lastAssistantText.trim() : "";
+
+  if (sourceText) {
+    const artifact = createWordArtifactFromMarkdown({ title, documentType: args.documentType, markdownText: sourceText });
+    return {
+      format: "word",
+      documentType: args.documentType,
+      title,
+      source: "last_assistant_text",
+      artifact,
+      markdownPreview: [
+        `已按上一条对话内容生成《${title}》Word 文档，Word 正文与下方内容一致。`,
+        "",
+        `[点击下载 Word 文档：${artifact.filename}](${artifact.url})`,
+        "",
+        sourceText,
+      ].join("\n"),
+      exportSpec: {
+        suggestedFilename: artifact.filename,
+        downloadUrl: artifact.url,
+        note: "已将上一条助手回复原文写入 Word 文件。",
+      },
+    };
+  }
+
   const sections = buildWordSections(business, args.documentType);
   const artifact = createWordArtifact({ title, documentType: args.documentType, business, sections });
   const markdownPreview = renderWordMarkdown({
