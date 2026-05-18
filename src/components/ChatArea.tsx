@@ -27,6 +27,7 @@ export default function ChatArea() {
   const {
     messages,
     isTyping,
+    thinkingMessage,
     sendMessage,
     agentEnabled,
     lastAgentError,
@@ -196,8 +197,49 @@ export default function ChatArea() {
           <MessageBubble key={msg.id} message={msg} />
         ))}
 
-        {/* Typing indicator */}
-        {isTyping && (
+        {/* 流式思考消息 */}
+        {thinkingMessage && (
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #1B6EF3, #7C3AED)' }}>
+              <Bot className="w-4 h-4 text-white" />
+            </div>
+            <div className="px-4 py-3 rounded-xl max-w-[80%]" style={{ backgroundColor: '#F5F7FA', borderTopLeftRadius: '4px' }}>
+              {/* 思考进度指示 */}
+              <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" style={{ animationDelay: '150ms' }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" style={{ animationDelay: '300ms' }} />
+                </div>
+                <span className="text-xs font-medium" style={{ color: '#1B6EF3' }}>正在思考</span>
+              </div>
+              {/* 当前思考内容 */}
+              <div className="text-sm" style={{ color: '#1F2329' }}>
+                {thinkingMessage.content}
+              </div>
+              {/* 思考步骤历史 */}
+              {thinkingMessage.thinkingSteps && thinkingMessage.thinkingSteps.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-gray-200">
+                  <div className="text-xs" style={{ color: '#8F959E' }}>已执行步骤：</div>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {thinkingMessage.thinkingSteps.slice(-5).map((step, idx) => (
+                      <span
+                        key={idx}
+                        className="text-xs px-2 py-0.5 rounded"
+                        style={{ backgroundColor: 'rgba(27,110,243,0.08)', color: '#1B6EF3' }}
+                      >
+                        {step}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 普通 Typing indicator */}
+        {isTyping && !thinkingMessage && (
           <div className="flex items-start gap-3 mb-4">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #1B6EF3, #7C3AED)' }}>
               <Bot className="w-4 h-4 text-white" />
