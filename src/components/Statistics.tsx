@@ -5,7 +5,7 @@ import { getFullCompanyName } from '../utils/companyNames';
 import { TIER_RULES } from '../data/skills';
 import { completedVisits } from '../data/mockData';
 
-const levelColors: Record<string, string> = { S: '#DC2626', A: '#EA580C', B: '#2563EB', C: '#9CA3AF' };
+const levelColors: Record<string, string> = { S: '#DC2626', A: '#EA580C', B: '#16A34A', C: '#7B8794' };
 
 export default function Statistics() {
   const { filteredCustomers, filteredTasks, filteredCompletedVisits, filteredCoverage, currentRep } = useAppStore();

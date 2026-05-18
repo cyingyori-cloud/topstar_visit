@@ -31,6 +31,28 @@ export default function CustomerManagement() {
     aCount: filteredCustomers.filter(c => c.level === 'A').length,
     totalOpp: filteredCustomers.reduce((s, c) => s + c.opportunityAmount, 0),
   };
+  const levelFocus: Record<'S' | 'A' | 'B' | 'C', string> = {
+    S: '高层关系与重点商机',
+    A: '复购扩产与季度拜访',
+    B: '月度触达与需求信号',
+    C: '低成本激活筛选',
+  };
+  const levelSummary = (['S', 'A', 'B', 'C'] as const).map(level => {
+    const rule = TIER_RULES.find(r => r.tier === level);
+    const customersInLevel = filteredCustomers.filter(c => c.level === level);
+    const amount = customersInLevel.reduce((sum, customer) => sum + customer.opportunityAmount, 0);
+    const actualShare = stats.total > 0 ? Math.round((customersInLevel.length / stats.total) * 100) : 0;
+    return {
+      level,
+      label: rule?.label || '',
+      color: rule?.color || '#8F959E',
+      estimatedShare: rule?.estimatedShare || '-',
+      count: customersInLevel.length,
+      amount,
+      actualShare,
+      focus: levelFocus[level],
+    };
+  });
 
   return (
     <div className="flex-1 flex overflow-hidden p-4 gap-4">
@@ -46,17 +68,30 @@ export default function CustomerManagement() {
           </div>
         </div>
 
-        {/* SABC rules cards */}
-        <div className="grid grid-cols-4 gap-2.5">
-          {TIER_RULES.map(r => (
-            <div key={r.tier} className="bg-white rounded-lg px-3 py-3" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)', borderTop: `3px solid ${r.color}` }}>
-              <div className="text-sm font-bold mb-1.5" style={{ color: r.color }}>{r.tier}级 · {r.label}</div>
-              <div className="space-y-1 text-xs" style={{ color: '#64748B' }}>
-                <div>拜访频率：{r.visitFrequency > 0 ? `≥${r.visitFrequency}次/月上门` : r.contactFrequency > 0 ? `月度联系≥${r.contactFrequency}次` : '激活优先'}</div>
-                <div>超期提醒：<span style={{ color: r.color, fontWeight: 600 }}>{r.overdueDays}天</span></div>
+        {/* Customer structure snapshot */}
+        <div className="bg-white rounded-lg p-4" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm font-medium" style={{ color: '#1F2329' }}>客户结构概览</div>
+            <div className="text-xs" style={{ color: '#8F959E' }}>按当前销售负责客户统计</div>
+          </div>
+          <div className="grid grid-cols-4 gap-2.5">
+            {levelSummary.map(item => (
+              <div key={item.level} className="rounded-lg px-3 py-3 border" style={{ backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold" style={{ color: item.color }}>{item.level}级 · {item.label}</span>
+                  <span className="text-xs" style={{ color: '#8F959E' }}>参考{item.estimatedShare}</span>
+                </div>
+                <div className="flex items-end gap-1 mb-1">
+                  <span className="text-2xl font-bold" style={{ color: '#1F2329' }}>{item.count}</span>
+                  <span className="text-xs mb-1" style={{ color: '#8F959E' }}>家 · 当前{item.actualShare}%</span>
+                </div>
+                <div className="text-xs mb-2" style={{ color: '#64748B' }}>商机 ¥{item.amount}万</div>
+                <div className="text-xs rounded-md px-2 py-1" style={{ backgroundColor: `${item.color}10`, color: item.color }}>
+                  {item.focus}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         {/* Search & filter */}

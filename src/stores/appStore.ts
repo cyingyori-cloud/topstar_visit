@@ -670,38 +670,38 @@ ${filteredTasks.slice(0, 5).map((t, i) => `${i + 1}. ${t.customerLevel === 'S' ?
   /* ==================== Skill: 客户分层规则 ==================== */
   if (lc.includes('分层') || lc.includes('sabc') || lc.includes('客户分级')) {
     return {
-      text: `## 🏷️ SABC 客户分层规则
+      text: `## 🏷️ SABC 四级客户分层体系
 
-拓斯达客户分级运营体系，驱动差异化资源配置：
+拓斯达客户分级运营体系，用于决定资源投入、拜访频率和经营动作。
 
-| 等级 | 定义 | 月上门 | 月联系 | 超期阈值 | 颜色 |
-|------|------|--------|--------|---------|------|
-| 🔴 **S级** | 战略客户 | ≥4次 | ≥4次 | 7天 | 红 |
-| 🟠 **A级** | 重点客户 | ≥1次 | ≥1次 | 30天 | 橙 |
-| 🔵 **B级** | 一般客户 | — | ≥1次 | 60天 | 蓝 |
-| ⚪ **C级** | 待激活客户 | — | — | 90天 | 灰 |
+| 客户级别 | 定义 | 数量占比（估算） | 当前管理方式 |
+|---|---|---:|---|
+| 🔴 **S级 · 战略客户** | 高层指定，高价值、高战略意义客户 | 约5% | 五个一工程：每月上门≥4次、活动邀约、高层互动、年度关怀、驻场服务 |
+| 🟠 **A级 · 重点客户** | 重点运营活跃客户，近两年有成交 | 约20% | 三个一工程：每月联系、季度上门拜访、年度高层互动 |
+| 🟢 **B级 · 活跃客户** | 近两年内有成交的活跃客户，需定期维护 | 约30% | 每月联系1次，无需强制上门拜访 |
+| ⚪ **C级 · 沉睡客户** | 近两年未成交的沉睡客户，需激活 | 约45% | 系统自动标记，依赖销售自主跟进，缺乏激活策略 |
 
 ---
 
 ### 差异化运营动作
 
 **S级（战略客户）**：
-- 每周至少上门 1 次
-- 要求客户高层会面、需求深度确认、方案价值呈现、行动计划对齐、竞品信息收集
-- 商机推进节奏：每周 review
+- 按“五个一工程”经营：月度高频上门、活动邀约、高层互动、年度关怀、驻场服务
+- 每次拜访必须沉淀高层关系、战略需求、竞品动态和下一步承诺
+- 商机推进节奏建议按周 review
 
 **A级（重点客户）**：
-- 每月至少上门 1 次 + 月度联系
-- 关键人会面、需求确认、方案交流
-- 商机推进节奏：双周 review
+- 按“三个一工程”经营：每月联系、季度上门拜访、年度高层互动
+- 重点看近两年成交后的复购、扩产、改造和横向拓展机会
+- 商机推进节奏建议按月 review
 
-**B级（一般客户）**：
-- 每月至少联系 1 次（电话/微信均可）
-- 筛选其中潜力客户升级为 A 级
+**B级（活跃客户）**：
+- 每月联系 1 次即可，不强制上门
+- 维护关系和需求信号，发现明确项目后再升级投入
 
-**C级（待激活客户）**：
-- 激活优先级排序：最近招标记录 + 历史成交金额 + 距上次联系时间
-- 批量触达，筛选意向后再重点投入`,
+**C级（沉睡客户）**：
+- 系统自动标记，适合用低成本方式批量激活
+- 优先找政策、扩产、设备更新、老产线故障、竞品替换等触发信号`,
       quickActions: [
         { label: '📊 检查拜访频率', icon: '📊', action: 'check_frequency' },
         { label: '🔄 C级激活策略', icon: '🔄', action: 'activation' },
@@ -742,12 +742,12 @@ ${filteredTasks.slice(0, 5).map((t, i) => `${i + 1}. ${t.customerLevel === 'S' ?
 
 ### 规则阈值
 
-| 等级 | 月上门要求 | 超期阈值 | 超期×2 |
+| 等级 | 管理方式 | 系统提醒口径 | 严重提醒 |
 |------|-----------|---------|--------|
-| S级 | ≥4次 | 7天 | 14天 |
-| A级 | ≥1次 | 30天 | 60天 |
-| B级 | 联系≥1次 | 60天 | 120天 |
-| C级 | 激活优先 | 90天 | 180天 |
+| S级 | 每月上门≥4次 | 7天未拜访 | 14天 |
+| A级 | 每月联系，季度上门拜访 | 90天未拜访 | 180天 |
+| B级 | 每月联系1次，无需强制上门 | 30天未联系/拜访 | 60天 |
+| C级 | 系统自动标记，销售自主激活 | 180天未触达 | 360天 |
 
 ${overdueList.length > 0 ? `### ⚠️ 已超期客户（${overdueList.length}家）
 
@@ -762,7 +762,7 @@ ${rows}
 ### 💡 行动建议
 
 - **🚨 严重超期**：48小时内安排上门拜访，重新激活关系
-- **⚠️ 超期**：本周内安排联系/拜访
+- **⚠️ 超期**：本周内安排联系或拜访
 - **S级超期**：最高优先级，立即处理`,
       quickActions: [
         { label: '📋 安排超期拜访', icon: '📋', action: 'schedule_overdue' },
@@ -952,10 +952,10 @@ ${topRules.map(r => `**${r.concern}** + **${r.stage}** → 🎯 **${r.scriptType
 
 | 等级 | 规则要求 | 实际达标 | 覆盖率 | 预警 |
 |------|---------|---------|--------|------|
-| 🔴 S级 | ≥4次/月 | ${coveredByTier.S}次 | ${totalByTier.S > 0 ? Math.round(coveredByTier.S / totalByTier.S * 100) : 0}% | ${totalByTier.S > 0 && coveredByTier.S / totalByTier.S < 0.8 ? '🚨 <80% 预警' : '✅'} |
-| 🟠 A级 | ≥1次/月 | ${coveredByTier.A}次 | ${totalByTier.A > 0 ? Math.round(coveredByTier.A / totalByTier.A * 100) : 0}% | ${totalByTier.A > 0 && coveredByTier.A / totalByTier.A < 0.6 ? '⚠️ <60% 预警' : '✅'} |
-| 🔵 B级 | 联系≥1次/月 | ${coveredByTier.B}次 | ${totalByTier.B > 0 ? Math.round(coveredByTier.B / totalByTier.B * 100) : 0}% | — |
-| ⚪ C级 | 激活优先 | ${coveredByTier.C}次 | ${totalByTier.C > 0 ? Math.round(coveredByTier.C / totalByTier.C * 100) : 0}% | — |
+| 🔴 S级 | 每月上门≥4次 | ${coveredByTier.S}次 | ${totalByTier.S > 0 ? Math.round(coveredByTier.S / totalByTier.S * 100) : 0}% | ${totalByTier.S > 0 && coveredByTier.S / totalByTier.S < 0.8 ? '🚨 <80% 预警' : '✅'} |
+| 🟠 A级 | 每月联系、季度上门 | ${coveredByTier.A}次 | ${totalByTier.A > 0 ? Math.round(coveredByTier.A / totalByTier.A * 100) : 0}% | ${totalByTier.A > 0 && coveredByTier.A / totalByTier.A < 0.6 ? '⚠️ <60% 预警' : '✅'} |
+| 🟢 B级 | 每月联系1次，无需强制上门 | ${coveredByTier.B}次 | ${totalByTier.B > 0 ? Math.round(coveredByTier.B / totalByTier.B * 100) : 0}% | — |
+| ⚪ C级 | 系统自动标记，销售自主激活 | ${coveredByTier.C}次 | ${totalByTier.C > 0 ? Math.round(coveredByTier.C / totalByTier.C * 100) : 0}% | — |
 
 ---
 
@@ -965,9 +965,10 @@ ${topRules.map(r => `**${r.concern}** + **${r.stage}** → 🎯 **${r.scriptType
 - **A级 < 60%** → ⚠️ 预警：重点客户跟进不足，需加强
 
 ### 行动建议
-1. S级未达标：立即增加上门频率，每周至少1次
-2. A级未达标：排查未覆盖客户，本月内完成拜访
-3. B/C级：用低成本方式（电话/微信）维持联系`,
+1. S级未达标：按“五个一工程”补齐高层互动、活动邀约和驻场服务动作
+2. A级未达标：先保证月度联系，再排季度上门拜访
+3. B级：用电话/微信保持月度触达，出现项目信号再升级
+4. C级：按激活线索批量触达，筛出有价值客户再投入`,
       quickActions: [
         { label: '📋 安排拜访', icon: '📋', action: 'schedule' },
         { label: '🔄 C级激活', icon: '🔄', action: 'activation' },

@@ -2,7 +2,7 @@ import { useRef, useEffect } from 'react';
 import { useAppStore } from '../stores/appStore';
 import MessageBubble from './MessageBubble';
 import InputBar from './InputBar';
-import { Bot, ChevronDown, Maximize2, Minimize2, Sparkles, X } from 'lucide-react';
+import { Bot, ChevronDown, Clock3, Maximize2, Minimize2, Sparkles, X } from 'lucide-react';
 import { normalizeCompanyNames } from '../utils/companyNames';
 import { useState } from 'react';
 import { testAgentConnection } from '../services/agent';
@@ -59,6 +59,7 @@ export default function ChatArea() {
     : agentMeta?.source;
   const activeModel = agentMeta?.model || runtimeConfig?.model || modelProviderLabel || 'OpenAI';
   const coachBadge = agentMeta?.coachMode ? `Coach · ${agentMeta.coachMode}` : null;
+  const showAgentTimer = Boolean(thinkingMessage || (isTyping && agentEnabled));
 
   // 初始化时从 store 同步配置到 draft（不再覆盖默认值）
   useEffect(() => {
@@ -199,6 +200,16 @@ export default function ChatArea() {
               }}
             >
               Coach · {coachBadge.split(' · ')[1]}
+            </span>
+          )}
+          {showAgentTimer && (
+            <span
+              className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full"
+              style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8' }}
+              title="Agent 正在生成回答"
+            >
+              <Clock3 className="w-3 h-3" />
+              思考 {elapsedSeconds}s
             </span>
           )}
         </div>

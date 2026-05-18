@@ -3,6 +3,9 @@
 export interface TierRule {
   tier: 'S' | 'A' | 'B' | 'C';
   label: string;
+  definition: string;
+  estimatedShare: string;
+  managementMethod: string;
   visitFrequency: number;   // 每月最少上门次数
   contactFrequency: number; // 每月最少联系次数
   overdueDays: number;      // 超期天数阈值
@@ -14,6 +17,9 @@ export const TIER_RULES: TierRule[] = [
   {
     tier: 'S',
     label: '战略客户',
+    definition: '高层指定，高价值、高战略意义客户',
+    estimatedShare: '约5%',
+    managementMethod: '五个一工程：每月上门≥4次、活动邀约、高层互动、年度关怀、驻场服务',
     visitFrequency: 4,
     contactFrequency: 4,
     overdueDays: 7,
@@ -23,29 +29,38 @@ export const TIER_RULES: TierRule[] = [
   {
     tier: 'A',
     label: '重点客户',
-    visitFrequency: 1,
+    definition: '重点运营活跃客户，近两年有成交',
+    estimatedShare: '约20%',
+    managementMethod: '三个一工程：每月联系、季度上门拜访、年度高层互动',
+    visitFrequency: 0,
     contactFrequency: 1,
-    overdueDays: 7,
+    overdueDays: 90,
     fiveChecks: ['关键人会面', '需求确认', '方案交流'],
     color: '#EA580C',
   },
   {
     tier: 'B',
     label: '活跃客户',
+    definition: '近两年内有成交的活跃客户，需定期维护',
+    estimatedShare: '约30%',
+    managementMethod: '每月联系1次，无需强制上门拜访',
     visitFrequency: 0,
     contactFrequency: 1,
     overdueDays: 30,
     fiveChecks: ['有实质性进展', '商机阶段有推进'],
-    color: '#2563EB',
+    color: '#16A34A',
   },
   {
     tier: 'C',
     label: '沉睡客户',
+    definition: '近两年未成交的沉睡客户，需激活',
+    estimatedShare: '约45%',
+    managementMethod: '系统自动标记，依赖销售自主跟进，缺乏激活策略',
     visitFrequency: 0,
-    contactFrequency: 1,
-    overdueDays: 30,
+    contactFrequency: 0,
+    overdueDays: 180,
     fiveChecks: ['有沟通记录'],
-    color: '#9CA3AF',
+    color: '#7B8794',
   },
 ];
 

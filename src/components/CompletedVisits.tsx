@@ -7,7 +7,7 @@ import { CheckCircle2, ChevronDown, ChevronRight, Check, Star, ClipboardCheck } 
 import { getFullCompanyName } from '../utils/companyNames';
 
 const periods = ['本周', '本月', '本季'];
-const levelColors: Record<string, string> = { S: '#DC2626', A: '#EA580C', B: '#2563EB', C: '#9CA3AF' };
+const levelColors: Record<string, string> = { S: '#DC2626', A: '#EA580C', B: '#16A34A', C: '#7B8794' };
 
 export default function CompletedVisits() {
   const { completedPeriod, setCompletedPeriod, triggerCustomerContext, filteredCompletedVisits } = useAppStore();

@@ -6,7 +6,7 @@ import { getFullCompanyName } from '../utils/companyNames';
 
 const periods = ['本周', '本月', '本季'];
 
-const levelColors: Record<string, string> = { S: '#DC2626', A: '#EA580C', B: '#2563EB', C: '#9CA3AF' };
+const levelColors: Record<string, string> = { S: '#DC2626', A: '#EA580C', B: '#16A34A', C: '#7B8794' };
 const alertThresholds: Record<string, number> = { S: 80, A: 60, B: 0, C: 0 };
 
 export default function CoverageRate() {
@@ -87,7 +87,7 @@ export default function CoverageRate() {
                       opacity: isAlert ? 0.9 : 0.7,
                     }} />
                   </div>
-                  {rule && <div className="text-xs mt-0.5" style={{ color: '#B0B5BE' }}>规则：{rule.label} · {rule.visitFrequency > 0 ? `≥${rule.visitFrequency}次/月上门` : `联系≥${rule.contactFrequency}次/月`}</div>}
+                  {rule && <div className="text-xs mt-0.5" style={{ color: '#B0B5BE' }}>规则：{rule.label} · {rule.managementMethod}</div>}
                 </div>
               );
             })}
@@ -102,7 +102,7 @@ export default function CoverageRate() {
               {filteredCoverage.uncoveredHighPriority.filter(c => c.customerLevel === 'S').map(c => (
                 <div key={c.customerId} className="text-xs cursor-pointer hover:underline" style={{ color: '#EA580C' }}
                   onClick={() => triggerCustomerContext(c.customerId, 'uncovered')}>
-                  · {getFullCompanyName(c.customerName)}（距上次：{c.daysSinceLastVisit}天 · 规则：7天）
+                  · {getFullCompanyName(c.customerName)}（距上次：{c.daysSinceLastVisit}天 · S级规则：每月上门≥4次）
                 </div>
               ))}
             </div>
@@ -115,7 +115,7 @@ export default function CoverageRate() {
                 if (first) triggerCustomerContext(first.customerId, 'uncovered');
               }}>
               <AlertTriangle className="w-3.5 h-3.5" />
-              超30天未拜访A级客户（{filteredCoverage.uncoveredHighPriority.filter(c => c.customerLevel === 'A').length}家 · 规则：30天）→
+              A级季度上门待补齐（{filteredCoverage.uncoveredHighPriority.filter(c => c.customerLevel === 'A').length}家 · 规则：每月联系、季度上门）→
             </button>
           )}
 
