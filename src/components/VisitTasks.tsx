@@ -23,10 +23,7 @@ const opportunityStageGuide: Record<string, string> = {
 
 function getOpportunityStageText(customer: any, hasOpportunity: boolean, task?: any) {
   if (!hasOpportunity || !customer) {
-    return {
-      title: '商机阶段：机会识别',
-      detail: task?.visitFocus || task?.visitGoal || '当前重点是建立关系、摸清产线痛点与潜在切入口，判断是否进入商机。',
-    };
+    return null;
   }
 
   const stage = customer.opportunityStage || '待确认';
@@ -229,12 +226,14 @@ function PendingConfirmationSection({ tasks, onConfirm }: { tasks: any[]; onConf
                       </div>
                       <div className="text-xs leading-relaxed" style={{ color: '#475569' }}>{task.visitFocus || task.visitGoal}</div>
                     </div>
-                    <div className="rounded-lg px-2.5 py-2" style={{ backgroundColor: '#FFFBEB', border: '1px solid #FDE68A' }}>
-                      <div className="text-xs font-semibold mb-1" style={{ color: '#B45309' }}>
-                        {stageText.title}
+                    {hasOpportunity && stageText ? (
+                      <div className="rounded-lg px-2.5 py-2" style={{ backgroundColor: '#FFFBEB', border: '1px solid #FDE68A' }}>
+                        <div className="text-xs font-semibold mb-1" style={{ color: '#B45309' }}>
+                          {stageText.title}
+                        </div>
+                        <div className="text-xs leading-relaxed" style={{ color: '#475569' }}>{stageText.detail}</div>
                       </div>
-                      <div className="text-xs leading-relaxed" style={{ color: '#475569' }}>{stageText.detail}</div>
-                    </div>
+                    ) : null}
                   </div>
                   <div className="text-xs leading-relaxed" style={{ color: '#8F959E' }}>
                     <span className="font-medium" style={{ color: '#64748B' }}>推荐拜访原因：</span>{task.visitGoal}
@@ -479,7 +478,7 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
             >
               <div className="flex items-center justify-between gap-2 mb-1">
                 <span className="text-xs font-semibold" style={{ color: hasOpportunity ? '#15803D' : '#1D4ED8' }}>
-                  {hasOpportunity ? '商机进行中' : '无商机 · 机会识别'}
+                  {hasOpportunity ? '商机进行中' : '无商机'}
                 </span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: '#FFFFFF', color: hasOpportunity ? '#15803D' : '#1D4ED8' }}>
                   {opportunityCount > 0 ? `${opportunityCount}个商机` : '线索培育'}
@@ -527,15 +526,16 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
             </div>
           </div>
 
-          {/* 右下：推进重点 */}
-          <div className="rounded-lg px-2.5 py-2 border" style={{ backgroundColor: '#FAFBFC', borderColor: '#D7DEE8' }}>
-            <div className="flex items-center gap-1.5 mb-1">
-              <span className="text-xs font-semibold" style={{ color: '#475569' }}>{hasOpportunity ? stageText.title : '商机阶段：机会识别'}</span>
+          {hasOpportunity && stageText ? (
+            <div className="rounded-lg px-2.5 py-2 border" style={{ backgroundColor: '#FAFBFC', borderColor: '#D7DEE8' }}>
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-xs font-semibold" style={{ color: '#475569' }}>{stageText.title}</span>
+              </div>
+              <div className="text-xs leading-relaxed" style={{ color: '#4B5563' }}>
+                {stageText.detail}
+              </div>
             </div>
-            <div className="text-xs leading-relaxed" style={{ color: '#4B5563' }}>
-              {stageText.detail}
-            </div>
-          </div>
+          ) : null}
         </div>
 
         <div className="flex items-center justify-between gap-3 pt-1 border-t border-gray-100">
@@ -610,7 +610,7 @@ function VisitDetailModal({ task, onClose, onPrepare }: { task: any; onClose: ()
               <CustomerBadge level={task.customerLevel} />
               <div className="text-base font-semibold" style={{ color: '#1F2329' }}>{getFullCompanyName(task.customerName)}</div>
               <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: hasOpportunity ? '#DCFCE7' : '#DBEAFE', color: hasOpportunity ? '#15803D' : '#2563EB' }}>
-                {hasOpportunity ? '商机进行中' : '无商机 · 机会识别'}
+                {hasOpportunity ? '商机进行中' : '无商机'}
               </span>
             </div>
             <div className="text-xs mt-1" style={{ color: '#8F959E' }}>{task.dayLabel} · {task.visitTime || '待定'} · {task.visitType}</div>
@@ -629,15 +629,17 @@ function VisitDetailModal({ task, onClose, onPrepare }: { task: any; onClose: ()
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl px-3 py-3" style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0' }}>
-              <div className="text-sm font-semibold mb-2" style={{ color: '#15803D' }}>{hasOpportunity ? '商机信息' : '机会识别'}</div>
-              <div className="space-y-1.5 text-sm" style={{ color: '#334155' }}>
-                <InfoLine label="商机名称" value={opportunityMain} />
-                <InfoLine label="商机阶段" value={opportunityStage} />
-                <InfoLine label="当前进度" value={opportunityProgress} />
-                <InfoLine label="风险提示" value={task.opportunityRisk || '暂无明确风险'} />
+            {hasOpportunity ? (
+              <div className="rounded-xl px-3 py-3" style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                <div className="text-sm font-semibold mb-2" style={{ color: '#15803D' }}>商机信息</div>
+                <div className="space-y-1.5 text-sm" style={{ color: '#334155' }}>
+                  <InfoLine label="商机名称" value={opportunityMain} />
+                  <InfoLine label="商机阶段" value={opportunityStage} />
+                  <InfoLine label="当前进度" value={opportunityProgress} />
+                  <InfoLine label="风险提示" value={task.opportunityRisk || '暂无明确风险'} />
+                </div>
               </div>
-            </div>
+            ) : null}
 
             <div className="rounded-xl px-3 py-3" style={{ backgroundColor: health.bg, border: `1px solid ${health.color}30` }}>
               <div className="text-sm font-semibold mb-2" style={{ color: health.color }}>客户健康度：{health.level}</div>
