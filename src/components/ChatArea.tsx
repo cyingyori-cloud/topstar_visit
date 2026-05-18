@@ -42,10 +42,10 @@ export default function ChatArea() {
     setModelConnectionStatus,
     setModelConnectionMessage,
   } = useAppStore();
-  const [providerDraft, setProviderDraft] = useState(modelProviderLabel);
-  const [baseUrlDraft, setBaseUrlDraft] = useState(runtimeConfig?.baseUrl || '');
-  const [modelDraft, setModelDraft] = useState(runtimeConfig?.model || '');
-  const [apiKeyDraft, setApiKeyDraft] = useState(runtimeConfig?.apiKey || '');
+  const [providerDraft, setProviderDraft] = useState('OpenAI / 兼容接口');
+  const [baseUrlDraft, setBaseUrlDraft] = useState('https://code.fwind.work');
+  const [modelDraft, setModelDraft] = useState('gpt-5.5');
+  const [apiKeyDraft, setApiKeyDraft] = useState('sk-10f212a07f4d13cd0a024ce20f411fb04b6d7c9d76ca904767101dbefb4bd69b');
   const [showModelMenu, setShowModelMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -53,15 +53,19 @@ export default function ChatArea() {
   const agentMeta = lastAssistant?.meta;
   const coachBadge = agentMeta?.coachMode ? `Coach · ${agentMeta.coachMode}` : null;
 
+  // 初始化时从 store 同步配置到 draft（不再覆盖默认值）
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, isTyping]);
+    setProviderDraft(modelProviderLabel);
+    setBaseUrlDraft(runtimeConfig?.baseUrl || '');
+    setModelDraft(runtimeConfig?.model || '');
+    setApiKeyDraft(runtimeConfig?.apiKey || '');
+  }, [modelProviderLabel, runtimeConfig]);
 
   useEffect(() => {
+    // 只有当本地没有配置且 store 也没有正确配置时才尝试从 localStorage 恢复
     const raw = window.localStorage.getItem(MODEL_CONFIG_STORAGE_KEY);
     if (!raw) return;
+    if (runtimeConfig?.apiKey) return; // 已有配置，跳过
     try {
       const saved = JSON.parse(raw);
       if (saved?.provider) setModelProviderLabel(saved.provider);
@@ -69,13 +73,9 @@ export default function ChatArea() {
     } catch {
       // ignore invalid local cache
     }
-  }, [setModelProviderLabel, setRuntimeConfig]);
+  }, [setModelProviderLabel, setRuntimeConfig, runtimeConfig]);
 
   const openModelConfig = () => {
-    setProviderDraft(modelProviderLabel);
-    setBaseUrlDraft(runtimeConfig?.baseUrl || '');
-    setModelDraft(runtimeConfig?.model || '');
-    setApiKeyDraft(runtimeConfig?.apiKey || '');
     setModelConfigOpen(true);
   };
 
