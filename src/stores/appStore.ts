@@ -6,6 +6,19 @@ import { normalizeCompanyNames } from '../utils/companyNames';
 import { TIER_RULES, INDUSTRY_CASES, SCRIPT_RULES, calcActivationScore } from '../data/skills';
 import { sendAgentChat, sendAgentChatStream, AgentRuntimeConfig } from '../services/agent';
 import { knowledgeDocumentItems } from '../data/knowledgeBase';
+import {
+  AnswerFeedback,
+  CustomerMemoryNote,
+  FeedbackValue,
+  SavedAnswer,
+  inferCustomerMemoryContent,
+  loadAnswerFeedback,
+  loadCustomerMemory,
+  loadSavedAnswers,
+  saveAnswerFeedback,
+  saveCustomerMemory,
+  saveSavedAnswers,
+} from '../utils/agentMemory';
 
 interface ChatMessage {
   id: string;
@@ -69,6 +82,9 @@ interface AppState {
   filteredCompletedVisits: CompletedVisit[];
   filteredCoverage: CoverageData;
   filteredKnowledge: KnowledgeItem[];
+  answerFeedback: Record<string, AnswerFeedback>;
+  savedAnswers: SavedAnswer[];
+  customerMemory: CustomerMemoryNote[];
 
   // Actions
   switchRep: (repId: string) => void;
@@ -92,6 +108,9 @@ interface AppState {
   triggerKnowledgeContext: (item: KnowledgeItem) => void;
   sendMessage: (content: string) => void;
   clearMessages: () => void;
+  rateAnswer: (messageId: string, value: FeedbackValue) => void;
+  saveAnswer: (messageId: string) => void;
+  saveCustomerMemoryFromAnswer: (messageId: string) => void;
 
   // 流式思考消息
   setThinkingMessage: (msg: ChatMessage | null) => void;
@@ -110,56 +129,45 @@ const DEFAULT_RUNTIME_CONFIG: AgentRuntimeConfig = {
 
 function getInitialMessages(
   repName: string,
-  taskCount: number,
+  confirmedTaskCount: number,
+  pendingTaskCount: number = 0,
   runtimeConfig: AgentRuntimeConfig | null = DEFAULT_RUNTIME_CONFIG,
 ): ChatMessage[] {
   const source = runtimeConfig ? 'agent' : 'fallback';
+  const taskSummary = pendingTaskCount > 0
+    ? `**${confirmedTaskCount}个已确认拜访任务**、**${pendingTaskCount}个待确认拜访提醒**`
+    : `**${confirmedTaskCount}个已确认拜访任务**`;
 
   return [
     {
       id: 'welcome',
       role: 'assistant',
-      content: `## 👋 ${repName}，欢迎使用 TopStar 智能拜访助手
+      content: `## ${repName}，本周拜访作战台已就绪
 
-已同步您本周 **${taskCount}个拜访任务** 和全量客户数据。
+已同步您本周 ${taskSummary} 和客户经营数据。
 
-### 🧠 Agent Skill 能力
+### 先看三件事
 
-| Skill | 功能 | 试试说 |
-|-------|------|--------|
-| 🏷️ 客户分层 | SABC分级规则+差异化运营 | "客户分层" |
-| 📊 拜访频率 | 到期/超期自动预警 | "拜访频率" |
-| 📂 行业案例 | 按行业+产品线匹配标杆 | "行业案例" |
-| 🗣️ 话术推荐 | 关注点×阶段→话术组合 | "话术推荐" |
-| ⚔️ 竞品分析 | 历史竞对+差异化优势 | "竞品分析" |
-| ✅ 有效性评估 | 访后五个一/三个一自检 | "有效性评估" |
-| 📊 覆盖率统计 | SABC各级覆盖率预警 | "覆盖率统计" |
-| 🔄 激活策略 | 沉睡客户优先级+话术 | "激活策略" |
-| 🧩 Skill 创建 | 设计新的 Agent 工具能力 | "创建一个报价审批skill" |
-| 📄 Word 生成 | 生成拜访纪要/客户报告/方案文档 | "生成Word拜访纪要" |
-| 📕 PDF 生成 | 生成正式归档版报告结构 | "生成PDF客户方案" |
-| 📊 PPT 生成 | 生成汇报PPT大纲和讲稿 | "生成PPT方案汇报" |
-| 📈 Excel 生成 | 生成客户清单/拜访计划/商机台账 | "生成Excel商机台账" |
+| 关注点 | 你要判断什么 |
+|---|---|
+| 客户优先级 | 哪家客户今天最值得投入精力 |
+| 商机推进点 | 这次拜访要拿到什么承诺 |
+| 知识打法 | 用哪类工艺、ROI、竞品或话术材料切入 |
 
-### 🧰 POCC 方法论
+### 我会按销售视角输出
 
-| 阶段 | 工具 |
-|------|------|
-| P 规划 | BOO目标 + BAC/MAC承诺 |
-| O 开场 | PBC模型 + STAR-R故事 |
-| C 咨询 | BPIDC提问 + N-SABE价值 |
-| C 收官 | Close三步法 + LSCPA异议 |
+- **先给重点判断**：客户现在最该打哪里
+- **再给拜访打法**：开场、提问、价值、收官
+- **融入知识库**：工艺痛点、产品优势、ROI、竞品防守
+- **最后给可复制话术**：能直接带去客户现场
 
-> *赢单五步法是战略，POCC 是战术。带着图纸去拜访，带着承诺回公司。*`,
+> 点击左侧拜访卡片，我会直接生成这家客户的拜访打法，而不是只讲方法论。`,
       timestamp: new Date(),
       quickActions: [
-        { label: '📋 本周拜访概览', icon: '📋', action: 'weekly_overview' },
-        { label: '📊 拜访频率', icon: '📊', action: 'check_frequency' },
-        { label: '🔄 C级激活', icon: '🔄', action: 'activation' },
-        { label: '🗣️ 话术推荐', icon: '🗣️', action: 'script_recommend' },
-        { label: '📄 生成Word纪要', icon: '📄', action: 'word_generator' },
-        { label: '📊 生成PPT汇报', icon: '📊', action: 'ppt_generator' },
-        { label: '📈 生成Excel台账', icon: '📈', action: 'excel_generator' },
+        { label: '看今天先拜访谁', icon: '📋', action: 'weekly_overview' },
+        { label: '准备重点客户打法', icon: '🎯', action: 'prepare_visit' },
+        { label: '生成开场话术', icon: '🗣️', action: 'script_recommend' },
+        { label: '梳理ROI说法', icon: '📊', action: 'roi_script' },
       ],
       meta: {
         source,
@@ -215,7 +223,55 @@ function computeFiltered(rep: SalesRep) {
   return { fc, ft, fcv, fCoverage, fk };
 }
 
+function getTaskCounts(tasks: VisitTask[]) {
+  const pending = tasks.filter(task => task.confirmationStatus === 'pending_confirmation').length;
+  return {
+    total: tasks.length,
+    pending,
+    confirmed: tasks.length - pending,
+  };
+}
+
 let messageIdCounter = 0;
+
+function uniqueSteps(steps: string[], next: string) {
+  return steps.includes(next) ? steps : [...steps, next];
+}
+
+function summarizeThinkingText(text: string) {
+  const value = String(text || '').trim();
+  if (!value) return '分析用户问题和当前业务上下文';
+  if (value.includes('分析')) return '识别意图：判断是否需要客户、拜访、知识库或 POCC 能力';
+  if (value.includes('处理工具结果')) return '整合数据：把工具返回的信息合并到回答结构';
+  if (value.includes('生成 Word')) return '生成文档：整理内容并写出 Word 下载材料';
+  return value.length > 34 ? `${value.slice(0, 34)}...` : value;
+}
+
+function summarizeToolStep(toolName: string, result: unknown) {
+  const toolLabels: Record<string, string> = {
+    skill_visit_board_summary: '读取拜访看板：同步任务、完成情况和覆盖率',
+    skill_customer_snapshot: '读取客户画像：客户信息、联系人、商机和历史拜访',
+    skill_visit_frequency: '检查拜访频率：按 S/A/B/C 规则判断到期和超期',
+    skill_industry_cases: '匹配行业案例：查找可用于 STAR-R 的标杆素材',
+    skill_knowledge_lookup: '检索知识库：匹配产品、工艺、竞品、ROI 和话术内容',
+    skill_pocc_visit_prep: '启用 POCC：组织 PBC、BPIDC、N-SABE、LSCPA 和 BAC/MAC',
+    skill_creator: '设计 Skill：整理触发场景、输入参数和输出结构',
+    word_generator: '生成 Word：把当前答案整理成可下载文档',
+    pdf_generator: '生成 PDF 结构：整理正式归档版报告框架',
+    ppt_generator: '生成 PPT 结构：整理汇报页和讲稿要点',
+    excel_generator: '生成 Excel 结构：整理客户、拜访和商机台账字段',
+  };
+
+  let suffix = '';
+  if (toolName === 'skill_knowledge_lookup') {
+    const data = result as any;
+    const matched = data?.data?.matchedKnowledgeBase || data?.matchedKnowledgeBase || [];
+    if (Array.isArray(matched) && matched[0]?.source) {
+      suffix = `：命中《${matched[0].source}》等知识片段`;
+    }
+  }
+  return `${toolLabels[toolName] || `调用工具：${toolName}`}${suffix}`;
+}
 
 function buildAgentContext(state: AppState) {
   const lastAssistantText = [...state.messages]
@@ -234,6 +290,16 @@ function buildAgentContext(state: AppState) {
     filteredCompletedVisits: state.filteredCompletedVisits,
     filteredCoverage: state.filteredCoverage,
     filteredKnowledge: state.filteredKnowledge,
+    customerMemory: state.selectedCustomerId
+      ? state.customerMemory
+          .filter(note => note.customerId === state.selectedCustomerId)
+          .slice(0, 8)
+      : [],
+    savedAnswerCount: state.savedAnswers.length,
+    answerFeedbackSummary: {
+      useful: Object.values(state.answerFeedback).filter(item => item.value === 'up').length,
+      notUseful: Object.values(state.answerFeedback).filter(item => item.value === 'down').length,
+    },
     tierRules: TIER_RULES,
     industryCases: INDUSTRY_CASES,
     scriptRules: SCRIPT_RULES,
@@ -1155,12 +1221,13 @@ const defaultRep = salesReps.find(rep => rep.level === 3) || salesReps[0];
 
 export const useAppStore = create<AppState>((set, get) => {
   const init = computeFiltered(defaultRep);
+  const initTaskCounts = getTaskCounts(init.ft);
 
   return {
     currentRep: defaultRep,
     selectedCustomerId: null,
     selectedCustomer: null,
-    messages: getInitialMessages(defaultRep.name, init.ft.length),
+    messages: getInitialMessages(defaultRep.name, initTaskCounts.confirmed, initTaskCounts.pending),
     isTyping: false,
     inputValue: '',
     previousResponseId: null,
@@ -1183,6 +1250,9 @@ export const useAppStore = create<AppState>((set, get) => {
     filteredCompletedVisits: init.fcv,
     filteredCoverage: init.fCoverage,
     filteredKnowledge: init.fk,
+    answerFeedback: loadAnswerFeedback(),
+    savedAnswers: loadSavedAnswers(),
+    customerMemory: loadCustomerMemory(),
 
     // 流式思考消息
     thinkingMessage: null,
@@ -1191,6 +1261,7 @@ export const useAppStore = create<AppState>((set, get) => {
       const rep = salesReps.find(r => r.id === repId);
       if (!rep) return;
       const f = computeFiltered(rep);
+      const taskCounts = getTaskCounts(f.ft);
       set({
         currentRep: rep,
         filteredCustomers: f.fc,
@@ -1198,7 +1269,7 @@ export const useAppStore = create<AppState>((set, get) => {
         filteredCompletedVisits: f.fcv,
         filteredCoverage: f.fCoverage,
         filteredKnowledge: f.fk,
-        messages: getInitialMessages(rep.name, f.ft.length, get().runtimeConfig),
+        messages: getInitialMessages(rep.name, taskCounts.confirmed, taskCounts.pending, get().runtimeConfig),
         selectedCustomerId: null,
         selectedCustomer: null,
         previousResponseId: null,
@@ -1237,11 +1308,11 @@ export const useAppStore = create<AppState>((set, get) => {
 
       let userMessage = '';
       if (contextType === 'task') {
-        userMessage = `帮我准备一下${normalizeCompanyNames(customer.name)}的拜访`;
+        userMessage = `我准备拜访${normalizeCompanyNames(customer.name)}。请结合客户等级、当前商机、商机阶段、历史拜访和拓斯达知识库，给我一份明天能直接使用的拜访打法：先判断这次拜访的核心目标，再给开场话术、必问问题、价值/ROI/竞品切入点、BAC/MAC收官承诺。`;
       } else if (contextType === 'completed') {
-        userMessage = `分析一下${normalizeCompanyNames(customer.name)}的拜访情况，并推荐跟进策略`;
+        userMessage = `复盘${normalizeCompanyNames(customer.name)}的拜访情况。请结合历史拜访和知识库，判断下一步怎么推进商机，并给出跟进话术。`;
       } else if (contextType === 'uncovered') {
-        userMessage = `${normalizeCompanyNames(customer.name)}已经很久没拜访了，帮我分析一下并推荐拜访策略`;
+        userMessage = `${normalizeCompanyNames(customer.name)}已经很久没拜访了。请结合客户行业和知识库，给我一套重新激活的拜访打法和开场话术。`;
       } else {
         userMessage = `请整理${normalizeCompanyNames(customer.name)}的客户详细信息，包含客户概况、关键联系人、当前商机、商机阶段、最近拜访情况和建议的经营重点。`;
       }
@@ -1272,10 +1343,10 @@ export const useAppStore = create<AppState>((set, get) => {
         const thinkingMsg: ChatMessage = {
           id: `msg-${++messageIdCounter}`,
           role: 'assistant',
-          content: '正在思考...',
+          content: '识别问题意图',
           timestamp: new Date(),
           isStreaming: true,
-          thinkingSteps: [],
+          thinkingSteps: ['识别意图：判断是否需要客户、拜访、知识库或 POCC 能力'],
         };
         set({ thinkingMessage: thinkingMsg });
 
@@ -1288,38 +1359,41 @@ export const useAppStore = create<AppState>((set, get) => {
               runtimeConfig: state.runtimeConfig,
             },
             (thinkingText) => {
+              const step = summarizeThinkingText(thinkingText);
               set((currentState) => ({
                 thinkingMessage: currentState.thinkingMessage
                   ? {
                       ...currentState.thinkingMessage,
-                      content: thinkingText,
-                      thinkingSteps: [...(currentState.thinkingMessage.thinkingSteps || []), thinkingText],
+                      content: step,
+                      thinkingSteps: uniqueSteps(currentState.thinkingMessage.thinkingSteps || [], step),
                     }
                   : null,
               }));
             },
             (toolName, result) => {
+              const step = summarizeToolStep(toolName, result);
               set((currentState) => ({
                 thinkingMessage: currentState.thinkingMessage
                   ? {
                       ...currentState.thinkingMessage,
-                      content: `调用工具: ${toolName}...`,
-                      thinkingSteps: [...(currentState.thinkingMessage.thinkingSteps || []), `🔧 ${toolName}`],
+                      content: step,
+                      thinkingSteps: uniqueSteps(currentState.thinkingMessage.thinkingSteps || [], step),
                     }
                   : null,
               }));
             },
-            (deltaText) => {
+            () => {
+              const finalStep = '组织最终答案：按结论、话术、行动建议输出';
+              if (get().thinkingMessage?.content === finalStep) return;
               set((currentState) => ({
                 thinkingMessage: currentState.thinkingMessage
                   ? {
                       ...currentState.thinkingMessage,
-                      content:
-                        currentState.thinkingMessage.content === '正在思考...' ||
-                        currentState.thinkingMessage.content.startsWith('调用工具:') ||
-                        currentState.thinkingMessage.content === '处理工具结果中...'
-                          ? deltaText
-                          : `${currentState.thinkingMessage.content}${deltaText}`,
+                      content: finalStep,
+                      thinkingSteps: uniqueSteps(
+                        currentState.thinkingMessage.thinkingSteps || [],
+                        finalStep,
+                      ),
                     }
                   : null,
               }));
@@ -1379,11 +1453,81 @@ export const useAppStore = create<AppState>((set, get) => {
 
     clearMessages: () => {
       const { currentRep, filteredTasks, runtimeConfig } = get();
+      const taskCounts = getTaskCounts(filteredTasks);
       set({
-        messages: getInitialMessages(currentRep.name, filteredTasks.length, runtimeConfig),
+        messages: getInitialMessages(currentRep.name, taskCounts.confirmed, taskCounts.pending, runtimeConfig),
         previousResponseId: null,
         lastAgentError: null,
       });
+    },
+
+    rateAnswer: (messageId, value) => {
+      const nextFeedback = { ...get().answerFeedback };
+      if (nextFeedback[messageId]?.value === value) {
+        delete nextFeedback[messageId];
+      } else {
+        nextFeedback[messageId] = {
+          messageId,
+          value,
+          createdAt: new Date().toISOString(),
+        };
+      }
+      saveAnswerFeedback(nextFeedback);
+      set({ answerFeedback: nextFeedback });
+    },
+
+    saveAnswer: (messageId) => {
+      const state = get();
+      const message = state.messages.find(item => item.id === messageId && item.role === 'assistant');
+      if (!message) return;
+      if (state.savedAnswers.some(item => item.id === messageId)) {
+        const nextSaved = state.savedAnswers.filter(item => item.id !== messageId);
+        saveSavedAnswers(nextSaved);
+        set({ savedAnswers: nextSaved });
+        return;
+      }
+
+      const nextSaved = [
+        {
+          id: messageId,
+          content: message.content,
+          customerId: state.selectedCustomerId,
+          customerName: state.selectedCustomer?.name || null,
+          createdAt: new Date().toISOString(),
+        },
+        ...state.savedAnswers,
+      ];
+      saveSavedAnswers(nextSaved);
+      set({ savedAnswers: nextSaved });
+    },
+
+    saveCustomerMemoryFromAnswer: (messageId) => {
+      const state = get();
+      const customer = state.selectedCustomer;
+      const message = state.messages.find(item => item.id === messageId && item.role === 'assistant');
+      if (!customer || !message) return;
+      if (state.customerMemory.some(item => item.sourceMessageId === messageId && item.customerId === customer.id)) {
+        const nextMemory = state.customerMemory.filter(item => !(item.sourceMessageId === messageId && item.customerId === customer.id));
+        saveCustomerMemory(nextMemory);
+        set({ customerMemory: nextMemory });
+        return;
+      }
+
+      const content = inferCustomerMemoryContent(message.content, customer);
+      if (!content) return;
+      const nextMemory = [
+        {
+          id: `${messageId}-${Date.now()}`,
+          customerId: customer.id,
+          customerName: customer.name,
+          content,
+          sourceMessageId: messageId,
+          createdAt: new Date().toISOString(),
+        },
+        ...state.customerMemory,
+      ];
+      saveCustomerMemory(nextMemory);
+      set({ customerMemory: nextMemory });
     },
 
     setThinkingMessage: (msg) => {

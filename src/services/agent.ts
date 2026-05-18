@@ -1,6 +1,7 @@
 import type { CompletedVisit, CoverageData, Customer, KnowledgeItem, VisitTask } from "../data/mockData";
 import type { SalesRep } from "../data/roles";
 import type { ScriptRule, TierRule } from "../data/skills";
+import type { CustomerMemoryNote } from "../utils/agentMemory";
 
 export interface AgentQuickAction {
   label: string;
@@ -28,6 +29,12 @@ export interface AgentContextPayload {
   filteredCompletedVisits: CompletedVisit[];
   filteredCoverage: CoverageData;
   filteredKnowledge: KnowledgeItem[];
+  customerMemory: CustomerMemoryNote[];
+  savedAnswerCount: number;
+  answerFeedbackSummary: {
+    useful: number;
+    notUseful: number;
+  };
   tierRules: TierRule[];
   industryCases: IndustryCase[];
   scriptRules: ScriptRule[];

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Bot, Check, Copy, Maximize2, Minimize2, User } from 'lucide-react';
+import { Bot, Check, Copy, Maximize2, Minimize2, Star, ThumbsUp, User } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 import MarkdownRenderer from './MarkdownRenderer';
 
@@ -27,10 +27,22 @@ interface Props {
 }
 
 export default function MessageBubble({ message }: Props) {
-  const { sendMessage } = useAppStore();
+  const {
+    sendMessage,
+    rateAnswer,
+    saveAnswer,
+    saveCustomerMemoryFromAnswer,
+    answerFeedback,
+    savedAnswers,
+    selectedCustomer,
+    customerMemory,
+  } = useAppStore();
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const feedbackValue = answerFeedback[message.id]?.value;
+  const isSaved = savedAnswers.some(item => item.id === message.id);
+  const hasMemory = customerMemory.some(item => item.sourceMessageId === message.id && item.customerId === selectedCustomer?.id);
   const isLongAssistantMessage = useMemo(
     () => !isUser && (message.content.length > 1200 || message.content.split('\n').length > 18),
     [isUser, message.content],
@@ -44,6 +56,18 @@ export default function MessageBubble({ message }: Props) {
     await navigator.clipboard.writeText(message.content);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1400);
+  };
+
+  const handleRate = () => {
+    rateAnswer(message.id, 'up');
+  };
+
+  const handleSaveAnswer = () => {
+    saveAnswer(message.id);
+  };
+
+  const handleSaveMemory = () => {
+    saveCustomerMemoryFromAnswer(message.id);
   };
 
   return (
@@ -108,6 +132,38 @@ export default function MessageBubble({ message }: Props) {
                     {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                     {copied ? '已复制' : '复制'}
                   </button>
+                  <button
+                    type="button"
+                    onClick={handleRate}
+                    className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs hover:bg-gray-100"
+                    style={{ color: feedbackValue === 'up' ? '#047857' : '#475569' }}
+                    title={feedbackValue === 'up' ? '取消有用反馈' : '标记为有用'}
+                  >
+                    <ThumbsUp className="h-3.5 w-3.5" />
+                    {feedbackValue === 'up' ? '已标记有用' : '有用？'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveAnswer}
+                    className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs hover:bg-gray-100"
+                    style={{ color: isSaved ? '#B45309' : '#475569' }}
+                    title={isSaved ? '取消收藏' : '收藏答案'}
+                  >
+                    <Star className="h-3.5 w-3.5" />
+                    {isSaved ? '已收藏' : '收藏'}
+                  </button>
+                  {selectedCustomer && (
+                    <button
+                      type="button"
+                      onClick={handleSaveMemory}
+                      className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs hover:bg-gray-100"
+                      style={{ color: hasMemory ? '#1B6EF3' : '#475569' }}
+                      title={hasMemory ? '取消客户沉淀' : '沉淀到当前客户'}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      {hasMemory ? '已沉淀' : '沉淀客户'}
+                    </button>
+                  )}
                 </div>
               </div>
               <div className={`assistant-answer ${isLongAssistantMessage && !expanded ? 'max-h-[520px] overflow-hidden' : ''}`}>

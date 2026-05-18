@@ -54,6 +54,25 @@ function buildKnowledgeChunks(filename, content) {
   });
 }
 
+function searchKnowledgeChunks(query, limit = 6) {
+  const tokens = tokenizeQuery(query);
+  const normalizedQuery = normalizeSearchText(query);
+  return KNOWLEDGE_CHUNKS
+    .map((chunk) => {
+      const exactScore = normalizedQuery && chunk.searchText.includes(normalizedQuery) ? 5 : 0;
+      const tokenScore = tokens.reduce((score, token) => score + (chunk.searchText.includes(token) ? 1 : 0), 0);
+      return { chunk, score: exactScore + tokenScore };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(({ chunk }) => ({
+      title: chunk.title,
+      heading: chunk.heading,
+      excerpt: excerptText(chunk.content, 700),
+    }));
+}
+
 function loadKnowledgeBase() {
   try {
     const files = readdirSync(KNOWLEDGE_DIR).filter(f => f.endsWith('.md'));
@@ -593,24 +612,11 @@ function knowledgeLookup(context, args) {
     return categoryMatch && text.includes(query);
   });
 
-  const scoredChunks = KNOWLEDGE_CHUNKS
-    .map((chunk) => {
-      const titleMatch = chunk.title.toLowerCase().includes(query) ? 8 : 0;
-      const headingMatch = chunk.heading.toLowerCase().includes(query) ? 6 : 0;
-      const exactMatch = chunk.searchText.includes(query) ? 5 : 0;
-      const tokenScore = tokens.reduce((score, token) => score + (chunk.searchText.includes(token) ? 1 : 0), 0);
-      return { chunk, score: titleMatch + headingMatch + exactMatch + tokenScore };
-    })
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 8)
-    .map(({ chunk, score }) => ({
-      source: chunk.title,
-      filename: chunk.filename,
-      heading: chunk.heading,
-      score,
-      excerpt: excerptText(chunk.content),
-    }));
+  const scoredChunks = searchKnowledgeChunks(args.query, 8).map((item) => ({
+    source: item.title,
+    heading: item.heading,
+    excerpt: item.excerpt,
+  }));
 
   return {
     query: args.query,
@@ -1113,6 +1119,58 @@ function shouldForceWordGeneration(message = "") {
   return /生成\s*word|导出\s*word|转\s*word|word\s*文档|生成\s*文档|导出\s*文档|docx?/i.test(String(message));
 }
 
+function shouldUseFastVisitPrep(body) {
+  const message = String(body?.message || "");
+  const context = body?.context || {};
+  return Boolean(
+    context.selectedCustomer &&
+    /拜访|准备|打法|开场|必问|BAC|MAC|收官|明天能直接使用/i.test(message) &&
+    !shouldForceWordGeneration(message)
+  );
+}
+
+function buildFastVisitPrepMessages(body, builtInstructions) {
+  const context = body.context || {};
+  const customer = context.selectedCustomer;
+  const prep = executeLocalTool("skill_pocc_visit_prep", {
+    customerId: customer?.id,
+    customerName: customer?.name,
+  }, context);
+  const knowledge = executeLocalTool("skill_knowledge_lookup", {
+    query: `${customer?.industry || ""} ${customer?.currentOpportunity || ""} ${customer?.opportunityStage || ""} ROI 竞品 话术 工艺`,
+  }, context);
+
+  const compactContext = {
+    customer: prep.customer,
+    primaryContact: prep.primaryContact,
+    currentTask: prep.currentTask,
+    recentVisits: prep.recentVisits,
+    matchedCases: prep.matchedCases,
+    matchedKnowledge: prep.matchedKnowledge,
+    knowledgeBase: knowledge.matchedKnowledgeBase?.slice(0, 5),
+    suggestedGoals: prep.suggestedGoals,
+  };
+
+  return {
+    toolNames: ["skill_pocc_visit_prep", "skill_knowledge_lookup"],
+    messages: [
+      { role: "system", content: builtInstructions.text },
+      {
+        role: "user",
+        content: [
+          "请基于以下已取好的客户、任务、知识库和 POCC 数据，直接生成销售拜访作战单。",
+          "不要再要求补充信息，不要解释你有哪些功能。",
+          "输出必须控制在 700 字以内，先给重点判断，再给可复制话术。",
+          "",
+          JSON.stringify(compactContext),
+          "",
+          `原始销售请求：${body.message}`,
+        ].join("\n"),
+      },
+    ],
+  };
+}
+
 function inferWordArgs(body) {
   const context = body.context || {};
   const customer = context.selectedCustomer || (Array.isArray(context.filteredCustomers) ? context.filteredCustomers[0] : null);
@@ -1180,12 +1238,26 @@ function shouldInjectKnowledgeBase(message = "") {
 }
 
 function instructionsForContext(context) {
-  const knowledgeSection = KNOWLEDGE_BASE && shouldInjectKnowledgeBase(context.userMessage || "")
-    ? `\n\n## 拓斯达行业知识库\n\n以下是拓斯达销售必须掌握的行业Know-How，在回答客户问题、推荐话术、分析竞品时，请优先使用这些知识：\n\n${KNOWLEDGE_BASE}\n`
+  const knowledgeQuery = [
+    context.userMessage,
+    context.selectedCustomer?.industry,
+    context.selectedCustomer?.currentOpportunity,
+    context.selectedCustomer?.opportunityStage,
+  ].filter(Boolean).join(" ");
+  const matchedKnowledge = shouldInjectKnowledgeBase(context.userMessage || "")
+    ? searchKnowledgeChunks(knowledgeQuery, 6)
+    : [];
+  const knowledgeSection = matchedKnowledge.length
+    ? `\n\n## 拓斯达行业知识库命中片段\n\n以下是本轮问题检索到的相关知识片段，只使用这些片段作为知识库依据，不要假装读完整库：\n\n${matchedKnowledge.map((item, index) => `${index + 1}. 《${item.title}》/${item.heading}\n${item.excerpt}`).join("\n\n")}\n`
+    : "";
+  const customerMemory = Array.isArray(context.customerMemory) ? context.customerMemory : [];
+  const memorySection = customerMemory.length
+    ? `\n\n## 当前客户历史沉淀\n\n以下是销售手动沉淀的客户级备注，优先用于拜访准备、话术推荐、异议处理和下一步动作判断：\n\n${customerMemory.map((note, index) => `${index + 1}. ${note.content}`).join("\n")}\n`
     : "";
 
   return [
     "你是 TopStar 智能拜访助手的真实业务 Agent。",
+    "你的用户是一线销售或销售管理者，不关心你有哪些功能，只关心下一次客户拜访怎么赢、怎么问、怎么说、怎么拿承诺。",
     `当前用户角色：${(context.currentRep || { name: "销售同事", role: "销售" }).name}（${(context.currentRep || { name: "销售同事", role: "销售" }).role}）。`,
     `当前页面：${context.activeNav || "拜访看板"}。`,
     context.selectedCustomer
@@ -1194,15 +1266,24 @@ function instructionsForContext(context) {
     "优先使用 tools 获取真实业务上下文，不要假设客户数据。",
     "回答要贴近一线销售拜访场景，默认使用中文。",
     "如果用户问具体客户、拜访频率、行业案例、话术、POCC 准备，请先调用对应 tool 再回答。",
+    "当用户来自左侧拜访卡片或明确说准备拜访某客户时，必须优先调用 skill_pocc_visit_prep；必要时再调用 skill_knowledge_lookup 或 skill_industry_cases。",
     "当用户问拜访准备、话术、异议处理、竞品对比、行业洞察、ROI、产品方案时，必须把拓斯达知识库检索结果和 POCC 方法论结合起来输出。",
     "话术类输出优先给可复制表达，并按 PBC 开场、BPIDC 提问、N-SABE 价值呈现、LSCPA 异议处理、BAC/MAC 收官承诺组织。",
     "引用知识库内容时要说明来自哪类知识底座或文档主题，不要编造未在客户数据或知识库中出现的案例数字。",
+    "如果存在当前客户历史沉淀，必须显式参考这些备注，并避免给出与客户已知偏好、痛点或风险相冲突的建议。",
+    "所有业务回答都必须先输出“重点速览”，用 3-5 条短句说明最关键结论、客户最该关注的问题和下一步动作。不要一上来写长篇方法论。",
+    "拜访准备类回答固定使用：1）重点判断；2）本次拜访目标 BAC/MAC；3）开场话术；4）必问三问；5）价值/ROI/竞品切入；6）收官承诺；7）用到的知识库和方法论。",
+    "重点速览后必须输出“马上做什么”，用 1/2/3 编号给具体动作；再输出“可复制话术”或“对客表达”。最后才放“依据/知识来源/方法论映射”。",
+    "默认回答控制在 700 字以内；除非用户明确要求详细方案，不要输出长文。",
+    "每段尽量短，单条 bullet 控制在 35 个中文字符以内；避免大段连续文本。表格只在能提升扫读效率时使用。",
+    "回答中必须明确标注：使用了哪个 skill、哪类知识库、哪套方法论；但这部分放在末尾，不要压过行动建议。",
     "如果用户要求生成 Word，先调用 word_generator；如果工具结果包含 exportSpec.downloadUrl 或 artifact.url，必须在回答里给出 Markdown 下载链接，并说明这是可由 Word 打开的 .doc 文件。",
     "如果用户要求生成 PDF/PPT/Excel，先调用对应 generator tool 获取结构化内容，再明确说明当前返回的是可导出内容草稿/结构，除非工具结果包含真实下载地址，不要声称已生成真实文件。",
     "如果用户要求新增 agent 能力或设计 skill，先调用 skill_creator 输出 skill 规格。",
-    "输出风格：先给结论，再给 3-5 条可执行建议；必要时用表格。",
+    "输出风格：结论先行、行动优先、话术可复制、依据后置。",
     "不要声称已经写入 CRM 或创建了任务，除非工具结果明确说明已经落库。",
     knowledgeSection,
+    memorySection,
   ].join("\n");
 }
 
@@ -1878,17 +1959,26 @@ async function runAgentStream(body, runtime, res) {
   }
 
   if (runtime.apiMode === "chat_completions") {
-    const baseMessages = [
+    const fastPrep = shouldUseFastVisitPrep(body)
+      ? buildFastVisitPrepMessages(body, builtInstructions)
+      : null;
+    const baseMessages = fastPrep?.messages || [
       { role: "system", content: builtInstructions.text },
       { role: "user", content: body.message },
     ];
     let wordPreview = null;
 
     sendEvent(res, "thinking", { text: "正在分析您的问题..." });
+    if (fastPrep) {
+      for (const name of fastPrep.toolNames) {
+        sendEvent(res, "tool", { name, result: { source: "local_prefetch" } });
+      }
+      sendEvent(res, "thinking", { text: "已结合客户、商机、知识库和 POCC，正在生成作战单..." });
+    }
     let response = await createOpenAIChatCompletionsStream({
       model: runtime.model,
       messages: baseMessages,
-      tools: TOOL_DEFINITIONS.map(tool => ({
+      tools: fastPrep ? undefined : TOOL_DEFINITIONS.map(tool => ({
         type: "function",
         function: {
           name: tool.name,
@@ -1896,9 +1986,16 @@ async function runAgentStream(body, runtime, res) {
           parameters: tool.parameters,
         },
       })),
-      tool_choice: "auto",
+      tool_choice: fastPrep ? undefined : "auto",
       temperature: 0.3,
     }, runtime, (delta) => sendEvent(res, "delta", { text: delta }));
+
+    if (fastPrep) {
+      const finalText = extractChatCompletionsText(response) || "处理完成";
+      sendEvent(res, "done", { text: finalText });
+      res.end();
+      return;
+    }
 
     for (let round = 0; round < 6; round++) {
       const functionCalls = extractChatCompletionsToolCalls(response);
@@ -2059,24 +2156,11 @@ const server = createServer(async (req, res) => {
   if (req.method === "GET" && req.url?.startsWith("/api/knowledge/search")) {
     const requestUrl = new URL(req.url, `http://${req.headers.host || "127.0.0.1"}`);
     const query = requestUrl.searchParams.get("q") || "";
-    const tokens = tokenizeQuery(query);
-    const normalizedQuery = normalizeSearchText(query);
-    const results = KNOWLEDGE_CHUNKS
-      .map((chunk) => {
-        const exactScore = normalizedQuery && chunk.searchText.includes(normalizedQuery) ? 5 : 0;
-        const tokenScore = tokens.reduce((score, token) => score + (chunk.searchText.includes(token) ? 1 : 0), 0);
-        return { chunk, score: exactScore + tokenScore };
-      })
-      .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 20)
-      .map(({ chunk, score }) => ({
-        source: chunk.title,
-        filename: chunk.filename,
-        heading: chunk.heading,
-        score,
-        excerpt: excerptText(chunk.content, 700),
-      }));
+    const results = searchKnowledgeChunks(query, 20).map((item) => ({
+      source: item.title,
+      heading: item.heading,
+      excerpt: item.excerpt,
+    }));
 
     sendJson(res, 200, {
       query,
