@@ -122,7 +122,7 @@ function getInitialMessages(
 
 已同步您本周 **${taskCount}个拜访任务** 和全量客户数据。
 
-### 🧠 八大 Skill 能力
+### 🧠 Agent Skill 能力
 
 | Skill | 功能 | 试试说 |
 |-------|------|--------|
@@ -134,6 +134,11 @@ function getInitialMessages(
 | ✅ 有效性评估 | 访后五个一/三个一自检 | "有效性评估" |
 | 📊 覆盖率统计 | SABC各级覆盖率预警 | "覆盖率统计" |
 | 🔄 激活策略 | 沉睡客户优先级+话术 | "激活策略" |
+| 🧩 Skill 创建 | 设计新的 Agent 工具能力 | "创建一个报价审批skill" |
+| 📄 Word 生成 | 生成拜访纪要/客户报告/方案文档 | "生成Word拜访纪要" |
+| 📕 PDF 生成 | 生成正式归档版报告结构 | "生成PDF客户方案" |
+| 📊 PPT 生成 | 生成汇报PPT大纲和讲稿 | "生成PPT方案汇报" |
+| 📈 Excel 生成 | 生成客户清单/拜访计划/商机台账 | "生成Excel商机台账" |
 
 ### 🧰 POCC 方法论
 
@@ -151,6 +156,9 @@ function getInitialMessages(
         { label: '📊 拜访频率', icon: '📊', action: 'check_frequency' },
         { label: '🔄 C级激活', icon: '🔄', action: 'activation' },
         { label: '🗣️ 话术推荐', icon: '🗣️', action: 'script_recommend' },
+        { label: '📄 生成Word纪要', icon: '📄', action: 'word_generator' },
+        { label: '📊 生成PPT汇报', icon: '📊', action: 'ppt_generator' },
+        { label: '📈 生成Excel台账', icon: '📈', action: 'excel_generator' },
       ],
       meta: {
         source,

@@ -15,6 +15,11 @@
     "skill_visit_frequency": "get_visit_frequency_status",
     "skill_industry_cases": "match_industry_cases",
     "skill_knowledge_lookup": "search_knowledge_base",
-    "skill_pocc_visit_prep": "prepare_visit_pocc"
+    "skill_pocc_visit_prep": "prepare_visit_pocc",
+    "skill_creator": "create_agent_skill_spec",
+    "word_generator": "generate_word_document",
+    "pdf_generator": "generate_pdf_document",
+    "ppt_generator": "generate_presentation",
+    "excel_generator": "generate_spreadsheet"
   }
 }

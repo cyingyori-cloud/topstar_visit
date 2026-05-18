@@ -145,6 +145,94 @@ const TOOL_DEFINITIONS = [
       additionalProperties: false,
     },
   },
+  {
+    type: "function",
+    name: "skill_creator",
+    description:
+      "设计新的 Agent Skill，包括用途、触发场景、输入参数、输出结构、执行流程和验收标准。用户要新增能力、创建 skill、扩展 agent 工具时使用。",
+    parameters: {
+      type: "object",
+      properties: {
+        skillName: { type: "string", description: "要创建的 skill 名称。" },
+        goal: { type: "string", description: "这个 skill 要解决的业务目标。" },
+        triggerExamples: {
+          type: "array",
+          items: { type: "string" },
+          description: "用户可能怎么触发这个 skill。",
+        },
+      },
+      required: ["skillName", "goal"],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
+    name: "word_generator",
+    description:
+      "生成 Word 文档内容草稿和结构，例如拜访纪要、客户方案、商机推进报告、周报、会议纪要。用户要求生成 Word、docx、文档、报告时使用。",
+    parameters: {
+      type: "object",
+      properties: {
+        documentType: { type: "string", description: "文档类型，例如拜访纪要、客户方案、周报。" },
+        customerId: { type: "string", description: "可选，关联客户ID。" },
+        customerName: { type: "string", description: "可选，关联客户名称。" },
+        topic: { type: "string", description: "文档主题。" },
+      },
+      required: ["documentType"],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
+    name: "pdf_generator",
+    description:
+      "生成适合导出为 PDF 的正式版内容结构，例如客户方案PDF、拜访报告PDF、管理汇报PDF。用户要求生成 PDF、正式报告、可归档材料时使用。",
+    parameters: {
+      type: "object",
+      properties: {
+        documentType: { type: "string", description: "PDF 类型，例如方案书、拜访报告、管理汇报。" },
+        customerId: { type: "string", description: "可选，关联客户ID。" },
+        customerName: { type: "string", description: "可选，关联客户名称。" },
+        topic: { type: "string", description: "PDF主题。" },
+      },
+      required: ["documentType"],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
+    name: "ppt_generator",
+    description:
+      "生成 PPT 演示稿大纲、页标题、每页要点、图表建议和讲述备注。用户要求生成 PPT、汇报材料、方案演示、拜访演示时使用。",
+    parameters: {
+      type: "object",
+      properties: {
+        deckType: { type: "string", description: "PPT 类型，例如客户方案、经营复盘、拜访汇报。" },
+        customerId: { type: "string", description: "可选，关联客户ID。" },
+        customerName: { type: "string", description: "可选，关联客户名称。" },
+        audience: { type: "string", description: "听众对象，例如客户高层、内部主管、技术团队。" },
+      },
+      required: ["deckType"],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
+    name: "excel_generator",
+    description:
+      "生成 Excel 表格结构和数据字段，例如客户清单、拜访计划、商机台账、覆盖率报表、行动计划表。用户要求生成 Excel、表格、台账、清单时使用。",
+    parameters: {
+      type: "object",
+      properties: {
+        workbookType: { type: "string", description: "表格类型，例如拜访计划、商机台账、客户清单。" },
+        scope: { type: "string", enum: ["current_rep", "selected_customer", "all_visible"], description: "数据范围。" },
+        customerId: { type: "string", description: "可选，关联客户ID。" },
+        customerName: { type: "string", description: "可选，关联客户名称。" },
+      },
+      required: ["workbookType"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 function resolveProviderRuntime(body) {
@@ -485,6 +573,173 @@ function poccVisitPrep(context, args) {
   };
 }
 
+function buildBusinessContext(context, args = {}) {
+  const customer = findCustomer(context, args.customerId, args.customerName);
+  const tasks = customer ? getPendingTasksForCustomer(context, customer.id) : (context.filteredTasks || []);
+  const visits = customer ? getCompletedVisitsForCustomer(context, customer.id) : (context.filteredCompletedVisits || []);
+  return {
+    rep: context.currentRep || null,
+    customer,
+    currentTask: tasks[0] || null,
+    recentVisits: visits.slice(0, 5),
+    coverage: context.filteredCoverage || null,
+  };
+}
+
+function skillCreator(context, args) {
+  const name = String(args.skillName || "").trim();
+  const goal = String(args.goal || "").trim();
+  const triggerExamples = Array.isArray(args.triggerExamples) ? args.triggerExamples : [];
+
+  return {
+    skillName: name,
+    goal,
+    recommendedToolName: name.startsWith("skill_") ? name : `skill_${name.replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase()}`,
+    triggerExamples,
+    suggestedSchema: {
+      type: "object",
+      properties: {
+        customerId: { type: "string", description: "可选，关联客户ID。" },
+        customerName: { type: "string", description: "可选，关联客户名称。" },
+        topic: { type: "string", description: "任务主题或输出主题。" },
+      },
+      additionalProperties: false,
+    },
+    workflow: [
+      "识别用户意图和业务对象",
+      "读取当前销售、客户、商机、拜访任务和知识库上下文",
+      "按固定结构生成可复用输出",
+      "返回下一步动作和验收标准",
+    ],
+    acceptanceCriteria: [
+      "能说明该 skill 何时触发",
+      "能定义输入参数和输出结构",
+      "能复用当前 CRM/拜访上下文",
+      "回答不虚构落库或文件已生成",
+    ],
+  };
+}
+
+function wordGenerator(context, args) {
+  const business = buildBusinessContext(context, args);
+  const customer = business.customer;
+  const title = args.topic || `${customer?.name || "客户"}${args.documentType}`;
+
+  return {
+    format: "word",
+    documentType: args.documentType,
+    title,
+    business,
+    sections: [
+      { heading: "一、背景摘要", prompt: "说明客户、行业、当前商机、拜访背景。" },
+      { heading: "二、客户现状", prompt: "整理关键联系人、痛点、设备/产线现状、历史拜访信息。" },
+      { heading: "三、商机判断", prompt: "说明商机名称、阶段、金额、风险和下一步推进节点。" },
+      { heading: "四、解决方案建议", prompt: "输出方案方向、价值点、案例支撑和差异化优势。" },
+      { heading: "五、行动计划", prompt: "列出负责人、时间、客户承诺、内部支持事项。" },
+    ],
+    exportSpec: {
+      suggestedFilename: `${title}.docx`,
+      note: "当前工具返回 Word 内容结构，前端或文件服务接入后可写出 docx。",
+    },
+  };
+}
+
+function pdfGenerator(context, args) {
+  const business = buildBusinessContext(context, args);
+  const customer = business.customer;
+  const title = args.topic || `${customer?.name || "客户"}${args.documentType}`;
+
+  return {
+    format: "pdf",
+    documentType: args.documentType,
+    title,
+    business,
+    layout: {
+      style: "正式归档版，A4纵向，商务蓝灰色标题，表格清晰可打印",
+      cover: ["标题", "客户/区域", "销售负责人", "生成日期"],
+      sections: ["结论摘要", "客户与商机概况", "关键证据", "风险与对策", "行动计划"],
+    },
+    exportSpec: {
+      suggestedFilename: `${title}.pdf`,
+      note: "当前工具返回适合 PDF 的正式内容结构，文件服务接入后可渲染为 PDF。",
+    },
+  };
+}
+
+function pptGenerator(context, args) {
+  const business = buildBusinessContext(context, args);
+  const customer = business.customer;
+  const title = `${customer?.name || ""}${args.deckType}`.trim();
+
+  return {
+    format: "ppt",
+    deckType: args.deckType,
+    audience: args.audience || "业务评审对象",
+    title,
+    business,
+    slides: [
+      { title: "封面", points: [title, `面向：${args.audience || "业务评审对象"}`], visual: "客户名+商机阶段" },
+      { title: "客户与商机概览", points: ["客户等级/行业/区域", "当前商机/金额/阶段", "关键联系人"], visual: "三栏信息卡" },
+      { title: "当前问题与机会", points: ["客户痛点", "技术/商务卡点", "竞品风险"], visual: "问题矩阵" },
+      { title: "方案与价值主张", points: ["方案方向", "提效/降本/质量价值", "标杆案例"], visual: "价值链路图" },
+      { title: "推进计划", points: ["下一步会议", "客户承诺", "内部资源需求"], visual: "时间轴" },
+    ],
+    exportSpec: {
+      suggestedFilename: `${title || "TopStar汇报"}.pptx`,
+      note: "当前工具返回 PPT 大纲和每页内容建议，文件服务接入后可写出 pptx。",
+    },
+  };
+}
+
+function excelGenerator(context, args) {
+  const scope = args.scope || "current_rep";
+  const business = buildBusinessContext(context, args);
+  const customers = scope === "selected_customer" && business.customer
+    ? [business.customer]
+    : (context.filteredCustomers || []);
+  const tasks = scope === "selected_customer" && business.customer
+    ? getPendingTasksForCustomer(context, business.customer.id)
+    : (context.filteredTasks || []);
+
+  return {
+    format: "excel",
+    workbookType: args.workbookType,
+    scope,
+    sheets: [
+      {
+        name: "客户清单",
+        columns: ["客户名称", "等级", "行业", "区域", "当前商机", "商机金额", "商机阶段"],
+        rows: customers.map((customer) => [
+          customer.name,
+          customer.level,
+          customer.industry,
+          customer.region,
+          customer.currentOpportunity,
+          customer.opportunityAmount,
+          `${customer.opportunityStage} ${customer.opportunityPercent}%`,
+        ]),
+      },
+      {
+        name: "拜访计划",
+        columns: ["客户名称", "拜访类型", "时间", "地点", "目标", "商机主题", "风险"],
+        rows: tasks.map((task) => [
+          task.customerName,
+          task.visitType,
+          `${task.dayLabel || ""} ${task.visitTime || ""}`.trim(),
+          task.location,
+          task.visitGoal,
+          task.opportunityTopic || "",
+          task.opportunityRisk || "",
+        ]),
+      },
+    ],
+    exportSpec: {
+      suggestedFilename: `${args.workbookType}.xlsx`,
+      note: "当前工具返回工作簿结构和行数据，文件服务接入后可写出 xlsx。",
+    },
+  };
+}
+
 function executeLocalTool(name, args, context) {
   switch (name) {
     case "skill_visit_board_summary":
@@ -499,6 +754,16 @@ function executeLocalTool(name, args, context) {
       return knowledgeLookup(context, args);
     case "skill_pocc_visit_prep":
       return poccVisitPrep(context, args);
+    case "skill_creator":
+      return skillCreator(context, args);
+    case "word_generator":
+      return wordGenerator(context, args);
+    case "pdf_generator":
+      return pdfGenerator(context, args);
+    case "ppt_generator":
+      return pptGenerator(context, args);
+    case "excel_generator":
+      return excelGenerator(context, args);
     default:
       return { ok: false, message: `Unknown tool: ${name}` };
   }
@@ -567,6 +832,8 @@ function instructionsForContext(context) {
     "优先使用 tools 获取真实业务上下文，不要假设客户数据。",
     "回答要贴近一线销售拜访场景，默认使用中文。",
     "如果用户问具体客户、拜访频率、行业案例、话术、POCC 准备，请先调用对应 tool 再回答。",
+    "如果用户要求生成 Word/PDF/PPT/Excel，先调用对应 generator tool 获取结构化内容，再明确说明当前返回的是可导出内容草稿/结构，除非后续文件服务接入，不要声称已生成真实文件。",
+    "如果用户要求新增 agent 能力或设计 skill，先调用 skill_creator 输出 skill 规格。",
     "输出风格：先给结论，再给 3-5 条可执行建议；必要时用表格。",
     "不要声称已经写入 CRM 或创建了任务，除非工具结果明确说明已经落库。",
     knowledgeSection,
@@ -821,6 +1088,26 @@ function quickActionsForTools(toolNames) {
     skill_pocc_visit_prep: [
       { label: "生成拜访提纲", icon: "📝", action: "visit_outline" },
       { label: "模拟开场话术", icon: "🎤", action: "opening_script" },
+    ],
+    skill_creator: [
+      { label: "生成 Skill 规格", icon: "🧩", action: "skill_spec" },
+      { label: "补充触发样例", icon: "✨", action: "skill_examples" },
+    ],
+    word_generator: [
+      { label: "生成 Word 报告", icon: "📄", action: "word_report" },
+      { label: "转成正式纪要", icon: "📝", action: "word_minutes" },
+    ],
+    pdf_generator: [
+      { label: "生成 PDF 版报告", icon: "📕", action: "pdf_report" },
+      { label: "整理归档版", icon: "🗂️", action: "pdf_archive" },
+    ],
+    ppt_generator: [
+      { label: "生成 PPT 大纲", icon: "📊", action: "ppt_outline" },
+      { label: "补充演讲备注", icon: "🎙️", action: "ppt_notes" },
+    ],
+    excel_generator: [
+      { label: "生成 Excel 台账", icon: "📈", action: "excel_workbook" },
+      { label: "导出拜访计划表", icon: "📋", action: "visit_plan_sheet" },
     ],
   };
 
