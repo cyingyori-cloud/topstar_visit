@@ -734,6 +734,36 @@ function renderWordHtml({ title, documentType, business, sections }) {
 </html>`;
 }
 
+function renderWordMarkdown({ title, documentType, business, sections, artifact }) {
+  const metaRows = [
+    ["客户", business.customer?.name || "未指定"],
+    ["销售", business.rep?.name || "未指定"],
+    ["商机", business.customer?.currentOpportunity || business.currentTask?.opportunityTopic || "待明确"],
+    ["阶段", `${business.customer?.opportunityStage || "待确认"} ${business.customer?.opportunityPercent ?? ""}%`],
+  ];
+
+  return [
+    `已生成《${title}》Word 文档，下载文件正文与下方预览一致。`,
+    "",
+    `[点击下载 Word 文档：${artifact.filename}](${artifact.url})`,
+    "",
+    `## ${title}`,
+    "",
+    `文档类型：${documentType || "Word 文档"}`,
+    "",
+    "| 项目 | 内容 |",
+    "| --- | --- |",
+    ...metaRows.map(([label, value]) => `| ${label} | ${value} |`),
+    "",
+    ...sections.flatMap((section) => [
+      `### ${section.heading}`,
+      "",
+      ...section.paragraphs.map((paragraph) => `- ${paragraph}`),
+      "",
+    ]),
+  ].join("\n");
+}
+
 function createWordArtifact({ title, documentType, business, sections }) {
   mkdirSync(ARTIFACT_DIR, { recursive: true });
   const filenameBase = sanitizeFilename(title);
@@ -753,6 +783,13 @@ function wordGenerator(context, args) {
   const title = args.topic || `${customer?.name || "客户"}${args.documentType}`;
   const sections = buildWordSections(business, args.documentType);
   const artifact = createWordArtifact({ title, documentType: args.documentType, business, sections });
+  const markdownPreview = renderWordMarkdown({
+    title,
+    documentType: args.documentType,
+    business,
+    sections,
+    artifact,
+  });
 
   return {
     format: "word",
@@ -761,6 +798,7 @@ function wordGenerator(context, args) {
     business,
     sections,
     artifact,
+    markdownPreview,
     exportSpec: {
       suggestedFilename: artifact.filename,
       downloadUrl: artifact.url,
@@ -912,6 +950,19 @@ async function executeTool(name, args, context) {
     remoteError: remoteResult.error || null,
     data: local,
   };
+}
+
+function extractLocalToolData(result) {
+  if (!result || typeof result !== "object") return null;
+  if (result.source === "local" && result.data) return result.data;
+  return result.data || result.raw || null;
+}
+
+function getWordGeneratorPreview(result) {
+  const data = extractLocalToolData(result);
+  return typeof data?.markdownPreview === "string" && data.markdownPreview.trim()
+    ? data.markdownPreview
+    : null;
 }
 
 function extractResponseText(response) {
@@ -1273,6 +1324,7 @@ async function runAgent(body) {
       runtime
     );
     const toolNames = [];
+    let wordPreview = null;
 
     for (let round = 0; round < 6; round += 1) {
       const toolUses = extractAnthropicToolUses(response);
@@ -1293,6 +1345,9 @@ async function runAgent(body) {
       for (const call of toolUses) {
         toolNames.push(call.name);
         const result = await executeTool(call.name, call.input, body.context || {});
+        if (call.name === "word_generator") {
+          wordPreview = getWordGeneratorPreview(result) || wordPreview;
+        }
         toolResults.push({
           type: "tool_result",
           tool_use_id: call.id,
@@ -1320,7 +1375,7 @@ async function runAgent(body) {
     return {
       responseId: response.id || null,
       model: response.model || runtime.model,
-      text: extractAnthropicText(response) || "我拿到了数据，但这次没有成功整理成回答。请再试一次。",
+      text: wordPreview || extractAnthropicText(response) || "我拿到了数据，但这次没有成功整理成回答。请再试一次。",
       toolCalls: [...new Set(toolNames)],
       quickActions: quickActionsForTools(toolNames),
       coachMeta: builtInstructions.coachMeta,
@@ -1331,6 +1386,7 @@ async function runAgent(body) {
   if (runtime.apiMode === "chat_completions") {
     let response = await createOpenAIResponse(buildInitialRequest(requestBody), runtime);
     const toolNames = [];
+    let wordPreview = null;
     const baseMessages = buildInitialRequest(requestBody).messages;
 
     for (let round = 0; round < 6; round += 1) {
@@ -1366,6 +1422,9 @@ async function runAgent(body) {
 
         toolNames.push(call.name);
         const result = await executeTool(call.name, args, body.context || {});
+        if (call.name === "word_generator") {
+          wordPreview = getWordGeneratorPreview(result) || wordPreview;
+        }
         baseMessages.push({
           role: "tool",
           tool_call_id: call.id,
@@ -1392,7 +1451,7 @@ async function runAgent(body) {
     return {
       responseId: response.id || null,
       model: response.model || runtime.model,
-      text: extractChatCompletionsText(response) || "我拿到了数据，但这次没有成功整理成回答。请再试一次。",
+      text: wordPreview || extractChatCompletionsText(response) || "我拿到了数据，但这次没有成功整理成回答。请再试一次。",
       toolCalls: [...new Set(toolNames)],
       quickActions: quickActionsForTools(toolNames),
       coachMeta: builtInstructions.coachMeta,
@@ -1402,6 +1461,7 @@ async function runAgent(body) {
 
   let response = await createOpenAIResponse(buildInitialRequest(requestBody), runtime);
   const toolNames = [];
+  let wordPreview = null;
 
   for (let round = 0; round < 6; round += 1) {
     const functionCalls = extractFunctionCalls(response);
@@ -1420,7 +1480,10 @@ async function runAgent(body) {
       }
 
       toolNames.push(call.name);
-        const result = await executeTool(call.name, args, body.context || {});
+      const result = await executeTool(call.name, args, body.context || {});
+      if (call.name === "word_generator") {
+        wordPreview = getWordGeneratorPreview(result) || wordPreview;
+      }
       outputs.push({
         type: "function_call_output",
         call_id: call.call_id,
@@ -1444,7 +1507,7 @@ async function runAgent(body) {
   return {
     responseId: response.id || null,
     model: runtime.model,
-    text: extractResponseText(response) || "我拿到了数据，但这次没有成功整理成回答。请再试一次。",
+    text: wordPreview || extractResponseText(response) || "我拿到了数据，但这次没有成功整理成回答。请再试一次。",
     toolCalls: [...new Set(toolNames)],
     quickActions: quickActionsForTools(toolNames),
     coachMeta: builtInstructions.coachMeta,
@@ -1474,6 +1537,7 @@ async function runAgentStream(body, runtime, res) {
 
   if (runtime.provider === "anthropic") {
     let messages = [{ role: "user", content: body.message }];
+    let wordPreview = null;
 
     sendEvent(res, "thinking", { text: "正在分析您的问题..." });
     let response = await createAnthropicResponse(buildInitialRequest({
@@ -1491,6 +1555,9 @@ async function runAgentStream(body, runtime, res) {
       for (const call of toolUses) {
         sendEvent(res, "thinking", { text: `调用工具 ${call.name}...` });
         const result = await executeTool(call.name, call.input, body.context || {});
+        if (call.name === "word_generator") {
+          wordPreview = getWordGeneratorPreview(result) || wordPreview;
+        }
         sendEvent(res, "tool", { name: call.name, result });
         messages.push({
           role: "user",
@@ -1506,7 +1573,7 @@ async function runAgentStream(body, runtime, res) {
       }), runtime);
     }
 
-    const finalText = extractAnthropicText(response) || "处理完成";
+    const finalText = wordPreview || extractAnthropicText(response) || "处理完成";
     sendEvent(res, "done", { text: finalText });
     res.end();
     return;
@@ -1517,6 +1584,7 @@ async function runAgentStream(body, runtime, res) {
       { role: "system", content: builtInstructions.text },
       { role: "user", content: body.message },
     ];
+    let wordPreview = null;
 
     sendEvent(res, "thinking", { text: "正在分析您的问题..." });
     let response = await createOpenAIResponse({
@@ -1547,6 +1615,9 @@ async function runAgentStream(body, runtime, res) {
         let args = {};
         try { args = JSON.parse(call.arguments); } catch {}
         const result = await executeTool(call.name, args, body.context || {});
+        if (call.name === "word_generator") {
+          wordPreview = getWordGeneratorPreview(result) || wordPreview;
+        }
         sendEvent(res, "tool", { name: call.name, result });
         baseMessages.push({
           role: "tool",
@@ -1565,7 +1636,7 @@ async function runAgentStream(body, runtime, res) {
       }, runtime);
     }
 
-    const finalText = extractChatCompletionsText(response) || "处理完成";
+    const finalText = wordPreview || extractChatCompletionsText(response) || "处理完成";
     sendEvent(res, "done", { text: finalText });
     res.end();
     return;
@@ -1577,6 +1648,7 @@ async function runAgentStream(body, runtime, res) {
     ...body,
     instructionsText: builtInstructions.text,
   }), runtime);
+  let wordPreview = null;
 
   for (let round = 0; round < 6; round++) {
     const functionCalls = extractFunctionCalls(response);
@@ -1588,6 +1660,9 @@ async function runAgentStream(body, runtime, res) {
       let args = {};
       try { args = JSON.parse(call.arguments); } catch {}
       const result = await executeTool(call.name, args, body.context || {});
+      if (call.name === "word_generator") {
+        wordPreview = getWordGeneratorPreview(result) || wordPreview;
+      }
       sendEvent(res, "tool", { name: call.name, result });
       outputs.push({ type: "function_call_output", call_id: call.call_id, output: JSON.stringify(result) });
     }
@@ -1601,7 +1676,7 @@ async function runAgentStream(body, runtime, res) {
     }, runtime);
   }
 
-  const finalText = extractResponseText(response) || "处理完成";
+  const finalText = wordPreview || extractResponseText(response) || "处理完成";
   sendEvent(res, "done", { text: finalText });
   res.end();
 }
