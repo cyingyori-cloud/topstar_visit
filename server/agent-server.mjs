@@ -1129,6 +1129,102 @@ function shouldUseFastVisitPrep(body) {
   );
 }
 
+function buildVisitPrepCacheKey(body) {
+  const context = body?.context || {};
+  const customer = context.selectedCustomer;
+  if (!customer) return null;
+  const visits = Array.isArray(context.filteredCompletedVisits)
+    ? context.filteredCompletedVisits
+        .filter((visit) => visit.customerId === customer.id)
+        .map((visit) => `${visit.visitDate}:${visit.summary}`)
+        .slice(0, 3)
+        .join("|")
+    : "";
+  const task = Array.isArray(context.filteredTasks)
+    ? context.filteredTasks.find((item) => item.customerId === customer.id)
+    : null;
+  return [
+    "visit-prep-v2",
+    customer.id,
+    customer.opportunityStage || "",
+    customer.opportunityPercent ?? "",
+    customer.currentOpportunity || "",
+    task?.visitGoal || "",
+    task?.expectedCommitment || "",
+    visits,
+  ].join("::");
+}
+
+function findCachedAnswer(body, cacheKey) {
+  const caches = Array.isArray(body?.context?.customerAnswerCache) ? body.context.customerAnswerCache : [];
+  const matched = caches.find((item) => item.cacheKey === cacheKey);
+  if (!matched?.content) return null;
+  const ageMs = Date.now() - new Date(matched.createdAt || 0).getTime();
+  const maxAgeMs = 24 * 60 * 60 * 1000;
+  return ageMs >= 0 && ageMs < maxAgeMs ? matched : null;
+}
+
+function pickFirstLine(value, fallback = "待确认") {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return fallback;
+  return text.length > 58 ? `${text.slice(0, 58)}...` : text;
+}
+
+function buildQuickVisitPrepSummary(body, fastPrep) {
+  const context = body?.context || {};
+  const customer = fastPrep?.compactContext?.customer || context.selectedCustomer || {};
+  const task = fastPrep?.compactContext?.currentTask
+    || (Array.isArray(context.filteredTasks)
+      ? context.filteredTasks.find((item) => item.customerId === customer.id)
+      : null);
+  const contact = fastPrep?.compactContext?.primaryContact
+    || (Array.isArray(customer.keyContacts) ? customer.keyContacts[0] : null);
+  const visits = Array.isArray(fastPrep?.compactContext?.recentVisits)
+    ? fastPrep.compactContext.recentVisits
+    : [];
+  const knowledge = [
+    ...(Array.isArray(fastPrep?.compactContext?.matchedKnowledge) ? fastPrep.compactContext.matchedKnowledge : []),
+    ...(Array.isArray(fastPrep?.compactContext?.knowledgeBase) ? fastPrep.compactContext.knowledgeBase : []),
+  ].filter(Boolean);
+  const knowledgeTitles = Array.from(new Set(knowledge
+    .map((item) => item.title || item.source || item.heading)
+    .filter(Boolean)))
+    .slice(0, 3);
+  const hasOpportunity = !/无商机|休眠|待确认/i.test(`${customer.currentOpportunity || ""} ${customer.opportunityStage || ""}`);
+  const stage = `${customer.opportunityStage || "待确认"}${customer.opportunityPercent != null ? ` / ${customer.opportunityPercent}%` : ""}`;
+  const bac = task?.expectedCommitment
+    || fastPrep?.compactContext?.suggestedGoals?.bestActionCommitment
+    || `推动 ${customer.currentOpportunity || "当前项目"} 进入下一次方案评审或关键人沟通`;
+  const mac = fastPrep?.compactContext?.suggestedGoals?.minimumActionCommitment
+    || "拿到客户最新需求、预算边界、决策链和下一次沟通窗口";
+  const currentRisk = task?.opportunityRisk
+    || (customer.opportunityStage?.includes("报") ? "方案价值和 ROI 需要被客户内部认可，否则容易停在评估环节" : "")
+    || (customer.opportunityStage?.includes("定") ? "商务决策窗口已打开，重点是锁定采购流程、价格边界和签批路径" : "")
+    || (hasOpportunity ? "需求存在但决策链、预算和时间表还没有完全闭环" : "当前还不能默认有明确商机，先验证真实痛点和立项可能性");
+
+  return [
+    "## 快速作战摘要",
+    "",
+    `**客户**：${customer.name || "当前客户"}（${customer.level || "未知"}级 / ${customer.industry || "行业待确认"}）`,
+    `**当前商机**：${customer.currentOpportunity || task?.opportunityTopic || "待确认"}；阶段：${stage}`,
+    `**本次拜访目标**：${pickFirstLine(task?.visitGoal || body?.message, "确认客户当前需求强度、项目阶段和下一步推进窗口")}`,
+    `**关键联系人**：${contact ? `${contact.name}${contact.title ? `（${contact.title}）` : ""}` : "现场确认业务、技术、采购三类角色"}`,
+    "",
+    "### 先按这 3 件事打",
+    `1. **先验证卡点**：围绕“${customer.currentOpportunity || "当前自动化需求"}”确认产线痛点、节拍/良率/人力成本和改造边界。`,
+    `2. **再要承诺**：BAC 是“${pickFirstLine(bac)}”；MAC 是“${pickFirstLine(mac)}”。`,
+    `3. **重点防风险**：${pickFirstLine(currentRisk)}`,
+    "",
+    "### 必问三问",
+    `- 现在这段工艺或产线最影响效率、良率、交付的指标是哪一个？有没有量化数据？`,
+    `- 这个项目内部谁负责技术评估、预算判断和最终拍板？目前分别卡在哪一步？`,
+    `- 如果我们补齐方案/ROI/案例材料，客户这边能否确认下一次评审时间和参与人？`,
+    "",
+    `**已先用到**：POCC 拜访准备；${knowledgeTitles.length ? `知识库《${knowledgeTitles.join("》《")}》` : "拓斯达行业知识库匹配中"}。完整打法还在生成，会继续补充开场话术、ROI/竞品切入和收官表达。`,
+    visits[0]?.summary ? `\n> 最近拜访参考：${pickFirstLine(visits[0].summary, "")}` : "",
+  ].filter(Boolean).join("\n");
+}
+
 function buildFastVisitPrepMessages(body, builtInstructions) {
   const context = body.context || {};
   const customer = context.selectedCustomer;
@@ -1137,7 +1233,7 @@ function buildFastVisitPrepMessages(body, builtInstructions) {
     customerName: customer?.name,
   }, context);
   const knowledge = executeLocalTool("skill_knowledge_lookup", {
-    query: `${customer?.industry || ""} ${customer?.currentOpportunity || ""} ${customer?.opportunityStage || ""} ROI 竞品 话术 工艺`,
+    query: `${customer?.industry || ""} ${customer?.currentOpportunity || ""} ${customer?.opportunityStage || ""} ROI 竞品 话术 工艺 产品 价值`,
   }, context);
 
   const compactContext = {
@@ -1147,12 +1243,13 @@ function buildFastVisitPrepMessages(body, builtInstructions) {
     recentVisits: prep.recentVisits,
     matchedCases: prep.matchedCases,
     matchedKnowledge: prep.matchedKnowledge,
-    knowledgeBase: knowledge.matchedKnowledgeBase?.slice(0, 5),
+    knowledgeBase: knowledge.matchedKnowledgeBase?.slice(0, 8),
     suggestedGoals: prep.suggestedGoals,
   };
 
   return {
     toolNames: ["skill_pocc_visit_prep", "skill_knowledge_lookup"],
+    compactContext,
     messages: [
       { role: "system", content: builtInstructions.text },
       {
@@ -1160,7 +1257,10 @@ function buildFastVisitPrepMessages(body, builtInstructions) {
         content: [
           "请基于以下已取好的客户、任务、知识库和 POCC 数据，直接生成销售拜访作战单。",
           "不要再要求补充信息，不要解释你有哪些功能。",
-          "输出必须控制在 700 字以内，先给重点判断，再给可复制话术。",
+          "质量优先，速度次之。不要为了短而牺牲客户洞察、知识库依据和话术可用性。",
+          "输出控制在 1200-1600 字，结构清晰、内容具体，不要空泛。",
+          "必须完整包含：重点判断、BAC/MAC、开场话术、必问三问、价值/ROI/竞品切入、异议预判、收官话术、知识库依据。",
+          "话术要像销售明天能直接照着说的内容，不能只是标题或一句口号。",
           "",
           JSON.stringify(compactContext),
           "",
@@ -1274,7 +1374,7 @@ function instructionsForContext(context) {
     "所有业务回答都必须先输出“重点速览”，用 3-5 条短句说明最关键结论、客户最该关注的问题和下一步动作。不要一上来写长篇方法论。",
     "拜访准备类回答固定使用：1）重点判断；2）本次拜访目标 BAC/MAC；3）开场话术；4）必问三问；5）价值/ROI/竞品切入；6）收官承诺；7）用到的知识库和方法论。",
     "重点速览后必须输出“马上做什么”，用 1/2/3 编号给具体动作；再输出“可复制话术”或“对客表达”。最后才放“依据/知识来源/方法论映射”。",
-    "默认回答控制在 700 字以内；除非用户明确要求详细方案，不要输出长文。",
+    "普通问答默认控制在 700 字以内；拜访准备/客户打法类回答允许 1200-1600 字，必须保证洞察、知识库依据和话术质量。",
     "每段尽量短，单条 bullet 控制在 35 个中文字符以内；避免大段连续文本。表格只在能提升扫读效率时使用。",
     "回答中必须明确标注：使用了哪个 skill、哪类知识库、哪套方法论；但这部分放在末尾，不要压过行动建议。",
     "如果用户要求生成 Word，先调用 word_generator；如果工具结果包含 exportSpec.downloadUrl 或 artifact.url，必须在回答里给出 Markdown 下载链接，并说明这是可由 Word 打开的 .doc 文件。",
@@ -1962,6 +2062,8 @@ async function runAgentStream(body, runtime, res) {
     const fastPrep = shouldUseFastVisitPrep(body)
       ? buildFastVisitPrepMessages(body, builtInstructions)
       : null;
+    const fastPrepCacheKey = fastPrep ? buildVisitPrepCacheKey(body) : null;
+    const cachedAnswer = fastPrepCacheKey ? findCachedAnswer(body, fastPrepCacheKey) : null;
     const baseMessages = fastPrep?.messages || [
       { role: "system", content: builtInstructions.text },
       { role: "user", content: body.message },
@@ -1970,10 +2072,26 @@ async function runAgentStream(body, runtime, res) {
 
     sendEvent(res, "thinking", { text: "正在分析您的问题..." });
     if (fastPrep) {
+      if (cachedAnswer) {
+        sendEvent(res, "thinking", { text: "命中同客户同商机缓存，直接读取上次作战单..." });
+        sendEvent(res, "done", {
+          text: cachedAnswer.content,
+          cacheMeta: { cacheKey: fastPrepCacheKey, hit: true },
+        });
+        res.end();
+        return;
+      }
+      sendEvent(res, "thinking", { text: "读取当前客户画像和拜访任务..." });
       for (const name of fastPrep.toolNames) {
         sendEvent(res, "tool", { name, result: { source: "local_prefetch" } });
       }
-      sendEvent(res, "thinking", { text: "已结合客户、商机、知识库和 POCC，正在生成作战单..." });
+      sendEvent(res, "thinking", { text: "匹配行业知识库、ROI/竞品/工艺话术..." });
+      sendEvent(res, "thinking", { text: "套用 POCC，组织 BAC/MAC 和必问三问..." });
+      sendEvent(res, "interim", {
+        label: "快速作战摘要",
+        text: buildQuickVisitPrepSummary(body, fastPrep),
+      });
+      sendEvent(res, "thinking", { text: "正在整合成可直接使用的拜访作战单..." });
     }
     let response = await createOpenAIChatCompletionsStream({
       model: runtime.model,
@@ -1992,7 +2110,10 @@ async function runAgentStream(body, runtime, res) {
 
     if (fastPrep) {
       const finalText = extractChatCompletionsText(response) || "处理完成";
-      sendEvent(res, "done", { text: finalText });
+      sendEvent(res, "done", {
+        text: finalText,
+        cacheMeta: { cacheKey: fastPrepCacheKey, hit: false },
+      });
       res.end();
       return;
     }

@@ -25,9 +25,18 @@ export interface CustomerMemoryNote {
   createdAt: string;
 }
 
+export interface CustomerAnswerCache {
+  cacheKey: string;
+  customerId: string;
+  customerName: string;
+  content: string;
+  createdAt: string;
+}
+
 const FEEDBACK_KEY = 'topstar-agent-answer-feedback-v1';
 const SAVED_ANSWERS_KEY = 'topstar-agent-saved-answers-v1';
 const CUSTOMER_MEMORY_KEY = 'topstar-agent-customer-memory-v1';
+const CUSTOMER_ANSWER_CACHE_KEY = 'topstar-agent-customer-answer-cache-v1';
 
 function readJson<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback;
@@ -66,6 +75,14 @@ export function loadCustomerMemory(): CustomerMemoryNote[] {
 
 export function saveCustomerMemory(items: CustomerMemoryNote[]) {
   writeJson(CUSTOMER_MEMORY_KEY, items.slice(0, 120));
+}
+
+export function loadCustomerAnswerCache(): CustomerAnswerCache[] {
+  return readJson<CustomerAnswerCache[]>(CUSTOMER_ANSWER_CACHE_KEY, []);
+}
+
+export function saveCustomerAnswerCache(items: CustomerAnswerCache[]) {
+  writeJson(CUSTOMER_ANSWER_CACHE_KEY, items.slice(0, 80));
 }
 
 export function inferCustomerMemoryContent(answer: string, customer: Customer) {

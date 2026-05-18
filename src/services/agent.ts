@@ -1,7 +1,7 @@
 import type { CompletedVisit, CoverageData, Customer, KnowledgeItem, VisitTask } from "../data/mockData";
 import type { SalesRep } from "../data/roles";
 import type { ScriptRule, TierRule } from "../data/skills";
-import type { CustomerMemoryNote } from "../utils/agentMemory";
+import type { CustomerAnswerCache, CustomerMemoryNote } from "../utils/agentMemory";
 
 export interface AgentQuickAction {
   label: string;
@@ -30,6 +30,7 @@ export interface AgentContextPayload {
   filteredCoverage: CoverageData;
   filteredKnowledge: KnowledgeItem[];
   customerMemory: CustomerMemoryNote[];
+  customerAnswerCache: CustomerAnswerCache[];
   savedAnswerCount: number;
   answerFeedbackSummary: {
     useful: number;
@@ -77,6 +78,10 @@ export interface AgentChatResponse {
     endpoint?: string;
     authHeader?: string;
   } | null;
+  cacheMeta?: {
+    cacheKey?: string;
+    hit?: boolean;
+  } | null;
 }
 
 // 流式事件回调
@@ -122,6 +127,7 @@ export async function sendAgentChat(payload: AgentChatRequest): Promise<AgentCha
     quickActions: Array.isArray(data.quickActions) ? data.quickActions : [],
     coachMeta: data && typeof data === "object" ? (data.coachMeta ?? null) : null,
     debugMeta: data && typeof data === "object" ? (data.debugMeta ?? null) : null,
+    cacheMeta: data && typeof data === "object" ? (data.cacheMeta ?? null) : null,
   };
 }
 
@@ -163,8 +169,9 @@ export async function sendAgentChatStream(
   onThinking: (text: string) => void,
   onToolCall: (name: string, result: any) => void,
   onDelta: (text: string) => void,
-  onDone: (text: string) => void,
-  onError: (error: string) => void
+  onDone: (text: string, meta?: { cacheKey?: string; hit?: boolean }) => void,
+  onError: (error: string) => void,
+  onInterim?: (text: string, meta?: { label?: string }) => void
 ): Promise<void> {
   const baseUrl = getAgentBaseUrl();
 
@@ -223,8 +230,10 @@ export async function sendAgentChatStream(
               onToolCall(parsed.name || '', parsed.result);
             } else if (eventType === 'delta') {
               onDelta(parsed.text || '');
+            } else if (eventType === 'interim') {
+              onInterim?.(parsed.text || '', { label: parsed.label });
             } else if (eventType === 'done') {
-              onDone(parsed.text || '');
+              onDone(parsed.text || '', parsed.cacheMeta || null);
             }
           } catch {}
         }

@@ -14,28 +14,52 @@ const allCategories = [
 ];
 
 const scenarioShortcuts = [
-  { label: '初次拜访', query: '洞察 客户 行业 开场' },
-  { label: '方案推进', query: '方案 价值 商机 推进' },
-  { label: 'ROI算账', query: 'ROI 投资回报 财务 回本' },
-  { label: '竞品防守', query: '竞品 对比 异议' },
-  { label: '异议处理', query: '异议 价格 LSCPA' },
+  { label: '初次拜访', query: '初次拜访 洞察 客户 行业 开场 PBC BPIDC 需求挖掘 产线痛点' },
+  { label: '方案推进', query: '方案推进 方案 价值 商机 推进 评审 BAC MAC 技术交流 方案汇报' },
+  { label: 'ROI算账', query: 'ROI 投资回报 财务 回本 TCO 成本 人工 良率 节拍 价格' },
+  { label: '竞品防守', query: '竞品防守 竞品 对比 差异化 稳定性 交付 售后 总拥有成本' },
+  { label: '异议处理', query: '异议处理 异议 价格 LSCPA 拒绝 供应商 审批 太贵' },
 ];
+
+function normalizeSearchText(value: string) {
+  return value.toLowerCase().replace(/[·.,，。！？!?:：;；()[\]【】《》“”"'、/\\|_-]+/g, ' ');
+}
+
+function getKnowledgeSearchText(item: KnowledgeItem) {
+  return normalizeSearchText([
+    item.title,
+    item.category,
+    item.content,
+    ...(item.tags || []),
+    ...(item.applicableIndustries || []),
+  ].join(' '));
+}
+
+function getSearchTokens(search: string) {
+  return normalizeSearchText(search)
+    .split(/\s+/)
+    .map(token => token.trim())
+    .filter(token => token.length > 0);
+}
+
+function matchesSearch(item: KnowledgeItem, search: string) {
+  const tokens = getSearchTokens(search);
+  if (tokens.length === 0) return true;
+  const haystack = getKnowledgeSearchText(item);
+  return tokens.some(token => haystack.includes(token));
+}
 
 export default function KnowledgeBase() {
   const { filteredKnowledge, currentRep } = useAppStore();
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('全部');
   const [selectedItem, setSelectedItem] = useState<KnowledgeItem | null>(null);
+  const [activeScenario, setActiveScenario] = useState<string | null>(null);
 
   const audienceLabel = currentRep.level === 1 ? '战略层内容' : currentRep.level === 2 ? '管理层内容' : '执行层内容';
 
   const filtered = filteredKnowledge.filter(k => {
-    const keyword = search.trim().toLowerCase();
-    const matchSearch = !keyword ||
-      k.title.toLowerCase().includes(keyword) ||
-      k.content.toLowerCase().includes(keyword) ||
-      k.tags.some(t => t.toLowerCase().includes(keyword)) ||
-      k.category.toLowerCase().includes(keyword);
+    const matchSearch = matchesSearch(k, search);
     const matchCat = activeCategory === '全部' || k.category === activeCategory;
     return matchSearch && matchCat;
   });
@@ -71,7 +95,7 @@ export default function KnowledgeBase() {
             <input
               type="text"
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setActiveScenario(null); }}
               placeholder="搜索产品、工艺、竞品、话术、ROI、案例..."
               className="w-full text-sm pl-9 pr-3 py-2.5 rounded-lg border border-gray-200 outline-none focus:border-blue-400"
               style={{ backgroundColor: '#F5F7FA' }}
@@ -82,7 +106,7 @@ export default function KnowledgeBase() {
             {allCategories.map(cat => (
               <button
                 key={cat}
-                onClick={() => setActiveCategory(cat)}
+                onClick={() => { setActiveCategory(cat); setActiveScenario(null); }}
                 className="text-xs px-2.5 py-1 rounded-full transition-all"
                 style={{
                   backgroundColor: activeCategory === cat ? '#1B6EF3' : 'rgba(27,110,243,0.06)',
@@ -100,9 +124,14 @@ export default function KnowledgeBase() {
               {scenarioShortcuts.map(item => (
                 <button
                   key={item.label}
-                  onClick={() => { setSearch(item.query); setActiveCategory('全部'); setSelectedItem(null); }}
+                  onClick={() => { setSearch(item.query); setActiveCategory('全部'); setSelectedItem(null); setActiveScenario(item.label); }}
                   className="text-xs rounded-lg px-2 py-2 text-left hover:shadow-sm transition-all"
-                  style={{ backgroundColor: '#F8FAFC', color: '#334155', border: '1px solid #E2E8F0' }}
+                  style={{
+                    backgroundColor: activeScenario === item.label ? 'rgba(27,110,243,0.10)' : '#F8FAFC',
+                    color: activeScenario === item.label ? '#1B6EF3' : '#334155',
+                    border: activeScenario === item.label ? '1px solid rgba(27,110,243,0.35)' : '1px solid #E2E8F0',
+                    fontWeight: activeScenario === item.label ? 600 : 400,
+                  }}
                 >
                   {item.label}
                 </button>
@@ -133,7 +162,14 @@ export default function KnowledgeBase() {
         {/* All */}
         <div className="bg-white rounded-lg" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
           <div className="px-4 py-3 border-b border-gray-100">
-            <span className="font-medium text-sm" style={{ color: '#1F2329' }}>全部内容 ({filtered.length})</span>
+            <span className="font-medium text-sm" style={{ color: '#1F2329' }}>
+              {activeScenario ? `${activeScenario}资料` : '全部内容'} ({filtered.length})
+            </span>
+            {activeScenario && (
+              <span className="ml-2 text-xs" style={{ color: '#8F959E' }}>
+                已按销售场景匹配标题、标签、分类和正文关键词
+              </span>
+            )}
           </div>
           <div className="grid grid-cols-3 gap-2 p-3">
             {normalItems.map(item => (

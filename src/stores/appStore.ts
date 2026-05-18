@@ -8,14 +8,17 @@ import { sendAgentChat, sendAgentChatStream, AgentRuntimeConfig } from '../servi
 import { knowledgeDocumentItems } from '../data/knowledgeBase';
 import {
   AnswerFeedback,
+  CustomerAnswerCache,
   CustomerMemoryNote,
   FeedbackValue,
   SavedAnswer,
   inferCustomerMemoryContent,
   loadAnswerFeedback,
+  loadCustomerAnswerCache,
   loadCustomerMemory,
   loadSavedAnswers,
   saveAnswerFeedback,
+  saveCustomerAnswerCache,
   saveCustomerMemory,
   saveSavedAnswers,
 } from '../utils/agentMemory';
@@ -36,6 +39,8 @@ interface ChatMessage {
     provider?: string | null;
     apiMode?: string | null;
     endpoint?: string | null;
+    answerStage?: 'quick' | 'full';
+    label?: string | null;
   };
   // 流式思考过程
   isStreaming?: boolean;
@@ -85,6 +90,7 @@ interface AppState {
   answerFeedback: Record<string, AnswerFeedback>;
   savedAnswers: SavedAnswer[];
   customerMemory: CustomerMemoryNote[];
+  customerAnswerCache: CustomerAnswerCache[];
 
   // Actions
   switchRep: (repId: string) => void;
@@ -111,6 +117,7 @@ interface AppState {
   rateAnswer: (messageId: string, value: FeedbackValue) => void;
   saveAnswer: (messageId: string) => void;
   saveCustomerMemoryFromAnswer: (messageId: string) => void;
+  cacheCustomerAnswer: (cacheKey: string, content: string) => void;
 
   // 流式思考消息
   setThinkingMessage: (msg: ChatMessage | null) => void;
@@ -241,6 +248,10 @@ function uniqueSteps(steps: string[], next: string) {
 function summarizeThinkingText(text: string) {
   const value = String(text || '').trim();
   if (!value) return '分析用户问题和当前业务上下文';
+  if (value.includes('读取当前客户画像')) return '读取客户画像：客户等级、联系人、商机和拜访任务';
+  if (value.includes('匹配行业知识库')) return '匹配知识库：工艺、ROI、竞品和话术素材';
+  if (value.includes('套用 POCC')) return '套用 POCC：组织 BAC/MAC、必问三问和收官';
+  if (value.includes('整合成可直接使用')) return '组织最终答案：生成可直接使用的拜访作战单';
   if (value.includes('分析')) return '识别意图：判断是否需要客户、拜访、知识库或 POCC 能力';
   if (value.includes('处理工具结果')) return '整合数据：把工具返回的信息合并到回答结构';
   if (value.includes('生成 Word')) return '生成文档：整理内容并写出 Word 下载材料';
@@ -294,6 +305,11 @@ function buildAgentContext(state: AppState) {
       ? state.customerMemory
           .filter(note => note.customerId === state.selectedCustomerId)
           .slice(0, 8)
+      : [],
+    customerAnswerCache: state.selectedCustomerId
+      ? state.customerAnswerCache
+          .filter(item => item.customerId === state.selectedCustomerId)
+          .slice(0, 6)
       : [],
     savedAnswerCount: state.savedAnswers.length,
     answerFeedbackSummary: {
@@ -1253,6 +1269,7 @@ export const useAppStore = create<AppState>((set, get) => {
     answerFeedback: loadAnswerFeedback(),
     savedAnswers: loadSavedAnswers(),
     customerMemory: loadCustomerMemory(),
+    customerAnswerCache: loadCustomerAnswerCache(),
 
     // 流式思考消息
     thinkingMessage: null,
@@ -1351,6 +1368,7 @@ export const useAppStore = create<AppState>((set, get) => {
         set({ thinkingMessage: thinkingMsg });
 
         try {
+          let hasInterimAnswer = false;
           await sendAgentChatStream(
             {
               message: content.trim(),
@@ -1398,14 +1416,26 @@ export const useAppStore = create<AppState>((set, get) => {
                   : null,
               }));
             },
-            (finalText) => {
+            (finalText, cacheMeta) => {
+              if (cacheMeta?.cacheKey && !cacheMeta.hit) {
+                get().cacheCustomerAnswer(cacheMeta.cacheKey, finalText);
+              }
+              const contentText = cacheMeta?.hit
+                ? `> 已读取同客户同商机缓存结果。\n\n${finalText}`
+                : hasInterimAnswer
+                  ? `## 完整拜访打法\n\n${finalText}`
+                  : finalText;
               const aiMsg: ChatMessage = {
                 id: `msg-${++messageIdCounter}`,
                 role: 'assistant',
-                content: finalText,
+                content: contentText,
                 timestamp: new Date(),
                 quickActions: [],
-                meta: { source: 'agent' },
+                meta: {
+                  source: 'agent',
+                  answerStage: hasInterimAnswer ? 'full' : undefined,
+                  label: hasInterimAnswer ? '完整拜访打法' : null,
+                },
               };
               set((currentState) => ({
                 messages: [...currentState.messages, aiMsg],
@@ -1422,6 +1452,25 @@ export const useAppStore = create<AppState>((set, get) => {
                 isTyping: false,
               });
               get().sendMessage(content);
+            },
+            (interimText, meta) => {
+              if (!interimText.trim()) return;
+              hasInterimAnswer = true;
+              const quickMsg: ChatMessage = {
+                id: `msg-${++messageIdCounter}`,
+                role: 'assistant',
+                content: interimText,
+                timestamp: new Date(),
+                quickActions: [],
+                meta: {
+                  source: 'agent',
+                  answerStage: 'quick',
+                  label: meta?.label || '快速作战摘要',
+                },
+              };
+              set((currentState) => ({
+                messages: [...currentState.messages, quickMsg],
+              }));
             }
           );
           return;
@@ -1528,6 +1577,24 @@ export const useAppStore = create<AppState>((set, get) => {
       ];
       saveCustomerMemory(nextMemory);
       set({ customerMemory: nextMemory });
+    },
+
+    cacheCustomerAnswer: (cacheKey, content) => {
+      const state = get();
+      const customer = state.selectedCustomer;
+      if (!customer || !cacheKey || !content.trim()) return;
+      const nextCache = [
+        {
+          cacheKey,
+          customerId: customer.id,
+          customerName: customer.name,
+          content,
+          createdAt: new Date().toISOString(),
+        },
+        ...state.customerAnswerCache.filter(item => item.cacheKey !== cacheKey),
+      ];
+      saveCustomerAnswerCache(nextCache);
+      set({ customerAnswerCache: nextCache });
     },
 
     setThinkingMessage: (msg) => {

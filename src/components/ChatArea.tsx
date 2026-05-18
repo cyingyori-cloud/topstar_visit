@@ -48,6 +48,8 @@ export default function ChatArea() {
   const [apiKeyDraft, setApiKeyDraft] = useState('sk-10f212a07f4d13cd0a024ce20f411fb04b6d7c9d76ca904767101dbefb4bd69b');
   const [showModelMenu, setShowModelMenu] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [thinkingStartedAt, setThinkingStartedAt] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const lastAssistant = [...messages].reverse().find(msg => msg.role === 'assistant');
@@ -88,6 +90,23 @@ export default function ChatArea() {
       messagesEndRef.current?.scrollIntoView({ block: 'end' });
     }
   }, [messages.length, thinkingMessage?.content, isTyping]);
+
+  useEffect(() => {
+    if (!thinkingMessage) {
+      setThinkingStartedAt(null);
+      setElapsedSeconds(0);
+      return;
+    }
+    if (!thinkingStartedAt) {
+      setThinkingStartedAt(Date.now());
+      setElapsedSeconds(0);
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - thinkingStartedAt) / 1000)));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [thinkingMessage, thinkingStartedAt]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -242,20 +261,32 @@ export default function ChatArea() {
               <Bot className="w-4 h-4 text-white" />
             </div>
             <div className="px-4 py-3 rounded-xl max-w-[80%] border" style={{ backgroundColor: '#F8FAFC', borderColor: '#E1E7EF', borderTopLeftRadius: '4px' }}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="flex items-center gap-1">
-                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" style={{ animationDelay: '150ms' }} />
-                  <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" style={{ animationDelay: '300ms' }} />
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" style={{ animationDelay: '150ms' }} />
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" style={{ animationDelay: '300ms' }} />
+                  </div>
+                  <span className="text-xs font-medium" style={{ color: '#1B6EF3' }}>思考中</span>
                 </div>
-                <span className="text-xs font-medium" style={{ color: '#1B6EF3' }}>处理中</span>
+                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8' }}>
+                  已用时 {elapsedSeconds}s
+                </span>
               </div>
               <div className="text-sm font-semibold" style={{ color: '#1F2329' }}>
                 {thinkingMessage.content || '正在分析问题并准备回答...'}
               </div>
               <div className="text-xs mt-1" style={{ color: '#8F959E' }}>
-                这里展示的是处理步骤，不是最终答案
+                {thinkingMessage.content?.includes('组织最终答案')
+                  ? '正在整合客户、商机、知识库和话术，最终答案生成后会显示为回答卡片'
+                  : '这里展示的是处理步骤摘要，不是最终答案'}
               </div>
+              {elapsedSeconds >= 8 && (
+                <div className="text-xs mt-2 rounded-md px-2 py-1.5" style={{ backgroundColor: '#FFF7ED', color: '#9A3412' }}>
+                  内容较复杂，正在保证客户洞察和话术质量，不是卡住。
+                </div>
+              )}
               {thinkingMessage.thinkingSteps && thinkingMessage.thinkingSteps.length > 0 && (
                 <div className="mt-2 pt-2 border-t border-gray-200">
                   <div className="text-xs mb-2" style={{ color: '#8F959E' }}>处理轨迹</div>
