@@ -25,6 +25,8 @@ jobs:
 
       - run: npm ci
       - run: npm run build
+        env:
+          VITE_AGENT_BASE_URL: https://topstar-visit.onrender.com
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4
