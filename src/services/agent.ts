@@ -97,6 +97,12 @@ interface AgentChatRequest {
 function getAgentBaseUrl() {
   const envBase = import.meta.env.VITE_AGENT_BASE_URL;
   if (envBase) return envBase;
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      return "https://topstar-visit.onrender.com";
+    }
+  }
   return "http://127.0.0.1:8788";
 }
 
