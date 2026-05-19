@@ -48,13 +48,10 @@ function extractTags(title: string, content: string) {
   return [...new Set(seed.map(item => item.trim()).filter(Boolean))].slice(0, 8);
 }
 
-function excerpt(content: string) {
+function normalizeDocumentContent(content: string) {
   return content
-    .replace(/^#+\s+/gm, '')
-    .replace(/\|/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 1200);
+    .replace(/\r\n/g, '\n')
+    .trim();
 }
 
 export const knowledgeDocumentItems: KnowledgeItem[] = Object.entries(modules)
@@ -67,7 +64,7 @@ export const knowledgeDocumentItems: KnowledgeItem[] = Object.entries(modules)
       id: `doc-${index + 1}`,
       title,
       category,
-      content: excerpt(content),
+      content: normalizeDocumentContent(content),
       applicableIndustries,
       applicableLevels: ['S', 'A', 'B', 'C'],
       tags: extractTags(title, content),

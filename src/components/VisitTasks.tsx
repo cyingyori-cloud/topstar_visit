@@ -3,7 +3,7 @@ import { useAppStore } from '../stores/appStore';
 import { completedVisits, customers } from '../data/mockData';
 import { TIER_RULES } from '../data/skills';
 import CustomerBadge from './CustomerBadge';
-import { ClipboardList, ChevronDown, Plus, ChevronRight, Building2, MapPin, MoreHorizontal, Calendar, AlertTriangle, Target, Eye, X, Clock, CheckCircle2, UserRound, Users } from 'lucide-react';
+import { ClipboardList, ChevronDown, Plus, ChevronRight, Building2, MapPin, MoreHorizontal, Calendar, AlertTriangle, Target, Eye, X, Clock, CheckCircle2, UserRound, Users, Pencil } from 'lucide-react';
 import { getFullCompanyName } from '../utils/companyNames';
 
 const periods = ['本日', '本周', '本月'];
@@ -64,10 +64,11 @@ function getOverdueStatus(tier: 'S' | 'A' | 'B' | 'C', daysSince: number) {
 }
 
 export default function VisitTasks() {
-  const { taskPeriod, setTaskPeriod, triggerCustomerContext, filteredTasks, setShowAddVisit } = useAppStore();
+  const { taskPeriod, setTaskPeriod, triggerCustomerContext, filteredTasks, setShowAddVisit, updateVisitTask } = useAppStore();
   const [showPeriodMenu, setShowPeriodMenu] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [detailTask, setDetailTask] = useState<any>(null);
+  const [editTask, setEditTask] = useState<any>(null);
   const [confirmTask, setConfirmTask] = useState<any>(null);
   const [confirmedTaskIds, setConfirmedTaskIds] = useState<string[]>([]);
 
@@ -84,7 +85,7 @@ export default function VisitTasks() {
   const fridayTasks = activeTasks.filter(t => t.dayLabel === '周五');
 
   const handleTaskClick = (task: typeof filteredTasks[0]) => {
-    triggerCustomerContext(task.customerId, 'task');
+    triggerCustomerContext(task.customerId, 'task', task);
   };
 
   // Count overdue tasks
@@ -146,10 +147,10 @@ export default function VisitTasks() {
 
         {!collapsed && (
           <div className="px-3 py-2 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-            <DaySection label="今天" count={todayTasks.length} color="#EF4444" tasks={todayTasks} onTaskClick={handleTaskClick} onDetailClick={setDetailTask} />
-            <DaySection label="明天" count={tomorrowTasks.length} color="#F59E0B" tasks={tomorrowTasks} onTaskClick={handleTaskClick} onDetailClick={setDetailTask} />
-            <DaySection label="周四" count={thursdayTasks.length} color="#8F959E" tasks={thursdayTasks} onTaskClick={handleTaskClick} onDetailClick={setDetailTask} />
-            <DaySection label="周五" count={fridayTasks.length} color="#8F959E" tasks={fridayTasks} onTaskClick={handleTaskClick} onDetailClick={setDetailTask} />
+            <DaySection label="今天" count={todayTasks.length} color="#EF4444" tasks={todayTasks} onTaskClick={handleTaskClick} onDetailClick={setDetailTask} onEditClick={setEditTask} />
+            <DaySection label="明天" count={tomorrowTasks.length} color="#F59E0B" tasks={tomorrowTasks} onTaskClick={handleTaskClick} onDetailClick={setDetailTask} onEditClick={setEditTask} />
+            <DaySection label="周四" count={thursdayTasks.length} color="#8F959E" tasks={thursdayTasks} onTaskClick={handleTaskClick} onDetailClick={setDetailTask} onEditClick={setEditTask} />
+            <DaySection label="周五" count={fridayTasks.length} color="#8F959E" tasks={fridayTasks} onTaskClick={handleTaskClick} onDetailClick={setDetailTask} onEditClick={setEditTask} />
 
             {activeTasks.length === 0 && filteredTasks.length > 0 && (
               <div className="rounded-xl border border-dashed px-4 py-8 text-center text-xs" style={{ borderColor: '#E5E7EB', color: '#8F959E', backgroundColor: '#FAFBFC' }}>
@@ -170,6 +171,14 @@ export default function VisitTasks() {
           setDetailTask(null);
         }
       }} />
+      <EditVisitTaskModal
+        task={editTask}
+        onClose={() => setEditTask(null)}
+        onSave={(taskId, patch) => {
+          updateVisitTask(taskId, patch);
+          setEditTask(null);
+        }}
+      />
       <ConfirmVisitModal
         task={confirmTask}
         onClose={() => setConfirmTask(null)}
@@ -341,8 +350,8 @@ function HistoryPopover({ customerId, customerName }: { customerId: string; cust
 }
 
 /* ---------- 每日任务分组 ---------- */
-function DaySection({ label, count, color, tasks, onTaskClick, onDetailClick }: {
-  label: string; count: number; color: string; tasks: any[]; onTaskClick: (task: any) => void; onDetailClick: (task: any) => void;
+function DaySection({ label, count, color, tasks, onTaskClick, onDetailClick, onEditClick }: {
+  label: string; count: number; color: string; tasks: any[]; onTaskClick: (task: any) => void; onDetailClick: (task: any) => void; onEditClick: (task: any) => void;
 }) {
   if (tasks.length === 0) return null;
   return (
@@ -352,14 +361,14 @@ function DaySection({ label, count, color, tasks, onTaskClick, onDetailClick }: 
         <span className="text-xs font-medium" style={{ color: '#1F2329' }}>{label} ({count})</span>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        {tasks.map((task: any) => <TaskCard key={task.id} task={task} onTaskClick={onTaskClick} onDetailClick={onDetailClick} />)}
+        {tasks.map((task: any) => <TaskCard key={task.id} task={task} onTaskClick={onTaskClick} onDetailClick={onDetailClick} onEditClick={onEditClick} />)}
       </div>
     </div>
   );
 }
 
 /* ---------- 单个任务卡片 ---------- */
-function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick: (t: any) => void; onDetailClick: (t: any) => void; }) {
+function TaskCard({ task, onTaskClick, onDetailClick, onEditClick }: { task: any; onTaskClick: (t: any) => void; onDetailClick: (t: any) => void; onEditClick: (t: any) => void; }) {
   const [showHistory, setShowHistory] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -562,6 +571,17 @@ function TaskCard({ task, onTaskClick, onDetailClick }: { task: any; onTaskClick
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <button
+              className="px-3 py-1.5 rounded-lg text-xs font-medium border inline-flex items-center gap-1"
+              style={{ borderColor: '#D7DEE8', color: '#475569', backgroundColor: '#FFF' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditClick(task);
+              }}
+            >
+              <Pencil className="w-3 h-3" />
+              编辑
+            </button>
+            <button
               className="px-3 py-1.5 rounded-lg text-xs font-medium border"
               style={{ borderColor: `${cardBorder}40`, color: cardBorder, backgroundColor: '#FFF' }}
               onClick={(e) => {
@@ -675,6 +695,122 @@ function VisitDetailModal({ task, onClose, onPrepare }: { task: any; onClose: ()
           >
             进入拜访准备
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditVisitTaskModal({
+  task,
+  onClose,
+  onSave,
+}: {
+  task: any;
+  onClose: () => void;
+  onSave: (taskId: string, patch: any) => void;
+}) {
+  const [visitPurpose, setVisitPurpose] = useState('');
+  const [visitType, setVisitType] = useState('');
+  const [visitTime, setVisitTime] = useState('');
+  const [location, setLocation] = useState('');
+  const [contactName, setContactName] = useState('');
+  const [opportunityTopic, setOpportunityTopic] = useState('');
+  const [opportunityRisk, setOpportunityRisk] = useState('');
+  const [visitGoal, setVisitGoal] = useState('');
+  const [expectedCommitment, setExpectedCommitment] = useState('');
+  const [visitFocus, setVisitFocus] = useState('');
+
+  if (!task) return null;
+
+  const contacts = task.contacts || [];
+  const selectedContact = contacts.find((contact: any) => contact.name === (contactName || task.contacts?.[0]?.name));
+
+  const handleSave = () => {
+    const nextContacts = selectedContact ? [selectedContact, ...contacts.filter((contact: any) => contact.name !== selectedContact.name)] : contacts;
+    onSave(task.id, {
+      visitPurpose: visitPurpose || task.visitPurpose,
+      visitType: visitType || task.visitType,
+      visitTime: visitTime || task.visitTime,
+      location: location || task.location,
+      contacts: nextContacts,
+      opportunityTopic: opportunityTopic || task.opportunityTopic,
+      opportunityRisk: opportunityRisk || task.opportunityRisk,
+      visitGoal: visitGoal || task.visitGoal,
+      expectedCommitment: expectedCommitment || task.expectedCommitment,
+      visitFocus: visitFocus || task.visitFocus,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.35)' }} onClick={onClose}>
+      <div className="w-[680px] bg-white rounded-2xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <div className="text-base font-semibold" style={{ color: '#1F2329' }}>编辑拜访任务</div>
+            <div className="text-xs mt-1" style={{ color: '#8F959E' }}>{getFullCompanyName(task.customerName)} · 编辑后 AI 话术会按新信息生成</div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100">
+            <X className="w-4 h-4" style={{ color: '#8F959E' }} />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4 max-h-[72vh] overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+          <div className="grid grid-cols-2 gap-3">
+            <EditField label="拜访主题" value={visitPurpose || task.visitPurpose} onChange={setVisitPurpose} />
+            <div>
+              <label className="text-xs font-medium block mb-1.5" style={{ color: '#5A5A5A' }}>拜访类型</label>
+              <select
+                value={visitType || task.visitType}
+                onChange={(e) => setVisitType(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 outline-none focus:border-blue-400"
+              >
+                {['高层拜访', '客情回访', '商务谈判', '方案汇报', '技术交流', '初次拜访'].map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+            <EditField label="拜访时间" value={visitTime || task.visitTime || ''} onChange={setVisitTime} placeholder="例如：明天 10:00 / 待定" />
+            <EditField label="拜访地点" value={location || task.location || ''} onChange={setLocation} />
+            <div>
+              <label className="text-xs font-medium block mb-1.5" style={{ color: '#5A5A5A' }}>本次联系人</label>
+              <select
+                value={contactName || task.contacts?.[0]?.name || ''}
+                onChange={(e) => setContactName(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 outline-none focus:border-blue-400"
+              >
+                {contacts.map((contact: any) => (
+                  <option key={contact.name} value={contact.name}>{contact.name}（{contact.title}）</option>
+                ))}
+              </select>
+            </div>
+            <EditField label="商机主题" value={opportunityTopic || task.opportunityTopic || ''} onChange={setOpportunityTopic} />
+          </div>
+
+          <EditArea label="商机风险" value={opportunityRisk || task.opportunityRisk || ''} onChange={setOpportunityRisk} rows={2} placeholder="例如：竞品已进入、预算不明确、技术参数未闭环" />
+          <EditArea label="本次拜访目标" value={visitGoal || task.visitGoal || ''} onChange={setVisitGoal} rows={3} />
+          <EditArea label="期望客户承诺（BAC/MAC依据）" value={expectedCommitment || task.expectedCommitment || ''} onChange={setExpectedCommitment} rows={2} />
+          <EditArea label="拜访重点/现场关注" value={visitFocus || task.visitFocus || ''} onChange={setVisitFocus} rows={2} />
+        </div>
+
+        <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between gap-2">
+          <div className="text-xs" style={{ color: '#8F959E' }}>保存后会清除该客户旧话术缓存，重新点击卡片会生成新打法。</div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-50"
+              style={{ color: '#5A5A5A' }}
+            >
+              取消
+            </button>
+            <button
+              onClick={handleSave}
+              className="px-4 py-2 rounded-lg text-sm text-white"
+              style={{ backgroundColor: '#1B6EF3' }}
+            >
+              保存修改
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -883,6 +1019,35 @@ function InfoPair({ label, value }: { label: string; value: string }) {
     <div className="rounded-lg px-3 py-2" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0' }}>
       <div className="text-[11px] mb-1" style={{ color: '#8F959E' }}>{label}</div>
       <div className="text-xs font-medium leading-relaxed" style={{ color: '#1F2329' }}>{value}</div>
+    </div>
+  );
+}
+
+function EditField({ label, value, onChange, placeholder = '' }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
+  return (
+    <div>
+      <label className="text-xs font-medium block mb-1.5" style={{ color: '#5A5A5A' }}>{label}</label>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 outline-none focus:border-blue-400"
+      />
+    </div>
+  );
+}
+
+function EditArea({ label, value, onChange, rows = 2, placeholder = '' }: { label: string; value: string; onChange: (value: string) => void; rows?: number; placeholder?: string }) {
+  return (
+    <div>
+      <label className="text-xs font-medium block mb-1.5" style={{ color: '#5A5A5A' }}>{label}</label>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={rows}
+        placeholder={placeholder}
+        className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 outline-none focus:border-blue-400 resize-none"
+      />
     </div>
   );
 }

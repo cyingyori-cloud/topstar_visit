@@ -110,8 +110,9 @@ interface AppState {
   setActiveNav: (nav: string) => void;
   setLeftPanelCollapsed: (collapsed: boolean) => void;
   setShowAddVisit: (show: boolean) => void;
-  triggerCustomerContext: (customerId: string, contextType: string) => void;
+  triggerCustomerContext: (customerId: string, contextType: string, taskOverride?: VisitTask) => void;
   triggerKnowledgeContext: (item: KnowledgeItem) => void;
+  updateVisitTask: (taskId: string, patch: Partial<VisitTask>) => void;
   sendMessage: (content: string) => void;
   clearMessages: () => void;
   rateAnswer: (messageId: string, value: FeedbackValue) => void;
@@ -1319,14 +1320,29 @@ export const useAppStore = create<AppState>((set, get) => {
     setLeftPanelCollapsed: (collapsed) => set({ leftPanelCollapsed: collapsed }),
     setShowAddVisit: (show) => set({ showAddVisit: show }),
 
-    triggerCustomerContext: (customerId, contextType) => {
+    triggerCustomerContext: (customerId, contextType, taskOverride) => {
       const customer = customers.find(c => c.id === customerId);
       if (!customer) return;
       set({ selectedCustomerId: customerId, selectedCustomer: customer });
+      const task = taskOverride || get().filteredTasks.find(item => item.customerId === customerId);
 
       let userMessage = '';
       if (contextType === 'task') {
-        userMessage = `我准备拜访${normalizeCompanyNames(customer.name)}。请结合客户等级、当前商机、商机阶段、历史拜访和拓斯达知识库，给我一份明天能直接使用的拜访打法：先判断这次拜访的核心目标，再给开场话术、必问问题、价值/ROI/竞品切入点、BAC/MAC收官承诺。`;
+        userMessage = [
+          `我准备拜访${normalizeCompanyNames(customer.name)}。请结合客户等级、当前商机、商机阶段、历史拜访和拓斯达知识库，给我一份明天能直接使用的拜访打法。`,
+          task ? `这次拜访卡片已更新，请严格按以下最新信息生成，不要沿用旧话术：` : '',
+          task ? `- 拜访类型：${task.visitType}` : '',
+          task ? `- 拜访时间：${task.dayLabel} ${task.visitTime || '待定'}` : '',
+          task ? `- 拜访地点：${task.location || '待定'}` : '',
+          task ? `- 拜访主题：${task.visitPurpose}` : '',
+          task ? `- 本次拜访目标：${task.visitGoal}` : '',
+          task ? `- 期望客户承诺：${task.expectedCommitment || '待明确'}` : '',
+          task ? `- 商机主题：${task.opportunityTopic || customer.currentOpportunity || '待明确'}` : '',
+          task ? `- 商机风险：${task.opportunityRisk || '待补充'}` : '',
+          task ? `- 拜访重点：${task.visitFocus || '待补充'}` : '',
+          task?.contacts?.length ? `- 本次联系人：${task.contacts.map(contact => `${contact.name}（${contact.title}）`).join('、')}` : '',
+          '输出要求：先判断这次拜访的核心目标，再给开场话术、必问问题、价值/ROI/竞品切入点、BAC/MAC收官承诺；话术必须体现上面最新编辑的信息。',
+        ].filter(Boolean).join('\n');
       } else if (contextType === 'completed') {
         userMessage = `复盘${normalizeCompanyNames(customer.name)}的拜访情况。请结合历史拜访和知识库，判断下一步怎么推进商机，并给出跟进话术。`;
       } else if (contextType === 'uncovered') {
@@ -1340,6 +1356,25 @@ export const useAppStore = create<AppState>((set, get) => {
 
     triggerKnowledgeContext: (item) => {
       get().sendMessage(`结合拓斯达知识库《${item.title}》和 POCC 方法论，输出可用于客户拜访的关键洞察、开场话术、BPIDC提问链、N-SABE价值呈现和收官承诺。知识内容摘要：${item.content}`);
+    },
+
+    updateVisitTask: (taskId, patch) => {
+      set((state) => {
+        const target = state.filteredTasks.find(task => task.id === taskId);
+        const nextTasks = state.filteredTasks.map(task => (
+          task.id === taskId ? { ...task, ...patch } : task
+        ));
+        const nextCache = target
+          ? state.customerAnswerCache.filter(item => item.customerId !== target.customerId)
+          : state.customerAnswerCache;
+        if (nextCache !== state.customerAnswerCache) {
+          saveCustomerAnswerCache(nextCache);
+        }
+        return {
+          filteredTasks: nextTasks,
+          customerAnswerCache: nextCache,
+        };
+      });
     },
 
     sendMessage: async (content) => {
