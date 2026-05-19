@@ -511,7 +511,7 @@ function getActions(item: KnowledgeItem) {
 }
 
 function getUseTiming(item: KnowledgeItem) {
-  if (item.title.includes('软技能') || item.category === '拜访话术') return ['开场前准备话术时', '需求挖掘卡住时', '收官要拿承诺时'];
+  if (item.title.includes('软技能') || item.category === '拜访话术') return ['开场前准备话术时', '需要深化需求时', '收官要拿承诺时'];
   if (item.title.includes('设备更新补贴')) return ['客户有技改计划时', '客户担心预算压力时', '需要政策推动老板决策时'];
   if (item.title.includes('财务') || item.title.includes('投资回报')) return ['客户质疑价格时', '需要推动老板拍板时', '要从设备参数切到经营收益时'];
   if (item.title.includes('竞品') || item.title.includes('行业格局') || item.category === '竞品对比') return ['客户正在比价时', '竞品已进入客户视野时', '需要建立差异化标准时'];

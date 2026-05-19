@@ -31,6 +31,52 @@ function getHeadingTone(text: string) {
   return { bg: '#F8FAFC', border: '#1B6EF3', color: '#111827', label: null };
 }
 
+function tableText(children: ReactNode) {
+  return flattenText(children).replace(/\s+/g, '');
+}
+
+function getTableTone(children: ReactNode) {
+  const text = tableText(children);
+  if (/客户|当前商机|核心目标|关键联系人|风险|阶段/.test(text)) {
+    return {
+      bg: '#F8FBFF',
+      border: '#93C5FD',
+      header: '#DBEAFE',
+      headerText: '#1E3A8A',
+      firstCol: '#EFF6FF',
+      accent: '#1B6EF3',
+    };
+  }
+  if (/优先级|重点|你要盯什么|顺序|动作|交付物|判断标准/.test(text)) {
+    return {
+      bg: '#F7FDF9',
+      border: '#86EFAC',
+      header: '#DCFCE7',
+      headerText: '#14532D',
+      firstCol: '#F0FDF4',
+      accent: '#16A34A',
+    };
+  }
+  if (/场景|话术|目的|收官|开场/.test(text)) {
+    return {
+      bg: '#FFFCF2',
+      border: '#FCD34D',
+      header: '#FEF3C7',
+      headerText: '#78350F',
+      firstCol: '#FFFBEB',
+      accent: '#F59E0B',
+    };
+  }
+  return {
+    bg: '#FFFFFF',
+    border: '#CBD5E1',
+    header: '#EAF2FF',
+    headerText: '#1E3A8A',
+    firstCol: '#F8FAFC',
+    accent: '#1B6EF3',
+  };
+}
+
 export default function MarkdownRenderer({ content }: Props) {
   return (
     <ReactMarkdown
@@ -104,23 +150,41 @@ export default function MarkdownRenderer({ content }: Props) {
             {children}
           </blockquote>
         ),
-        table: ({ children }) => (
-          <div className="overflow-x-auto my-3 rounded-lg border border-gray-200" style={{ boxShadow: '0 8px 20px rgba(15,23,42,0.05)' }}>
-            <table className="w-full min-w-[420px] text-xs border-collapse overflow-hidden">
+        table: ({ children }) => {
+          const tone = getTableTone(children);
+          return (
+          <div
+            className="overflow-x-auto my-3 rounded-xl border"
+            style={{
+              borderColor: tone.border,
+              backgroundColor: tone.bg,
+              boxShadow: '0 12px 28px rgba(15,23,42,0.08)',
+            }}
+          >
+            <table
+              className="w-full min-w-[420px] text-xs border-collapse overflow-hidden"
+              style={{
+                ['--table-header-bg' as string]: tone.header,
+                ['--table-header-text' as string]: tone.headerText,
+                ['--table-first-col-bg' as string]: tone.firstCol,
+                ['--table-accent' as string]: tone.accent,
+              }}
+            >
               {children}
             </table>
           </div>
-        ),
+          );
+        },
         thead: ({ children }) => (
-          <thead style={{ backgroundColor: '#EAF2FF' }}>{children}</thead>
+          <thead style={{ backgroundColor: 'var(--table-header-bg)' }}>{children}</thead>
         ),
         th: ({ children }) => (
-          <th className="px-3 py-2.5 text-left font-semibold border-b whitespace-nowrap" style={{ borderColor: '#D7DEE8', color: '#1E3A8A' }}>
+          <th className="px-3 py-2.5 text-left font-semibold border-b whitespace-nowrap" style={{ borderColor: '#D7DEE8', color: 'var(--table-header-text)' }}>
             {children}
           </th>
         ),
         td: ({ children }) => (
-          <td className="px-3 py-2 border-b align-top leading-6" style={{ borderColor: '#E8EDF4', color: '#334155' }}>
+          <td className="px-3 py-2.5 border-b align-top leading-6 first:font-semibold first:whitespace-nowrap" style={{ borderColor: '#E8EDF4', color: '#334155' }}>
             {children}
           </td>
         ),

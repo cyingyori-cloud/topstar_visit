@@ -291,11 +291,11 @@ export default function ChatArea() {
               <div className="text-xs mt-1" style={{ color: '#8F959E' }}>
                 {thinkingMessage.content?.includes('组织最终答案')
                   ? '正在整合客户、商机、知识库和话术，最终答案生成后会显示为回答卡片'
-                  : '这里展示的是处理步骤摘要，不是最终答案'}
+                  : '这里展示当前处理步骤，完整回答会在生成完成后展示'}
               </div>
               {elapsedSeconds >= 8 && (
                 <div className="text-xs mt-2 rounded-md px-2 py-1.5" style={{ backgroundColor: '#FFF7ED', color: '#9A3412' }}>
-                  内容较复杂，正在保证客户洞察和话术质量，不是卡住。
+                  正在深化客户洞察、知识库匹配和可复制话术。
                 </div>
               )}
               {thinkingMessage.thinkingSteps && thinkingMessage.thinkingSteps.length > 0 && (
