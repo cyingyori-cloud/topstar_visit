@@ -9,6 +9,7 @@ import { buildVisitCoachRuntimeGuide, hasVisitCoachSkillFile, shouldUseVisitCoac
 const KNOWLEDGE_DIR = process.env.KNOWLEDGE_DIR || "./knowledge";
 const ARTIFACT_DIR = process.env.ARTIFACT_DIR || "./server/artifacts";
 const PUBLIC_AGENT_BASE_URL = (process.env.PUBLIC_AGENT_BASE_URL || process.env.RENDER_EXTERNAL_URL || "https://topstar-visit.onrender.com").replace(/\/$/, "");
+const ANSWER_PRESENTATION_VERSION = "answer-presentation-v3-table";
 let KNOWLEDGE_BASE = "";
 let KNOWLEDGE_FILES = [];
 let KNOWLEDGE_CHUNKS = [];
@@ -1144,7 +1145,7 @@ function buildVisitPrepCacheKey(body) {
     ? context.filteredTasks.find((item) => item.customerId === customer.id)
     : null;
   return [
-    "visit-prep-v2",
+    ANSWER_PRESENTATION_VERSION,
     customer.id,
     customer.opportunityStage || "",
     customer.opportunityPercent ?? "",
@@ -2246,6 +2247,7 @@ const server = createServer(async (req, res) => {
       model: MODEL,
       apiMode: MODEL_PROVIDER === "anthropic" ? "messages" : OPENAI_API_MODE,
       baseUrl: MODEL_PROVIDER === "anthropic" ? ANTHROPIC_BASE_URL : OPENAI_BASE_URL,
+      answerPresentationVersion: ANSWER_PRESENTATION_VERSION,
       visitCoachSkill: await hasVisitCoachSkillFile(),
       port: PORT,
       mcp: {
