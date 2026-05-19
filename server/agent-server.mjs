@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { RemoteMcpClient, loadMcpConfig } from "./mcp-client.mjs";
-import { buildVisitCoachRuntimeGuide, hasVisitCoachSkillFile, shouldUseVisitCoach } from "./topstar-visit-coach.mjs";
+import { buildVisitCoachRuntimeGuideWithSkill, hasVisitCoachSkillFile, shouldUseVisitCoach } from "./topstar-visit-coach.mjs";
 
 // 加载知识库
 const KNOWLEDGE_DIR = process.env.KNOWLEDGE_DIR || "./knowledge";
@@ -1418,7 +1418,7 @@ async function buildInstructions(body) {
     };
   }
 
-  const runtimeGuide = buildVisitCoachRuntimeGuide(body.message, body.context || {});
+  const runtimeGuide = await buildVisitCoachRuntimeGuideWithSkill(body.message, body.context || {});
   const context = body.context || {};
   const currentRep = context.currentRep || { name: "销售同事", role: "销售" };
   const selectedCustomer = context.selectedCustomer;

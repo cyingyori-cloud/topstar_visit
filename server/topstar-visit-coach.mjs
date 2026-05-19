@@ -1,6 +1,13 @@
 import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const SKILL_PATH = "/Users/cying/Documents/kiro/topstar-visit-coach/SKILL.md";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PROJECT_SKILL_PATH = resolve(__dirname, "../skills/topstar-visit-coach/SKILL.md");
+const LEGACY_LOCAL_SKILL_PATH = "/Users/cying/Documents/kiro/topstar-visit-coach/SKILL.md";
+const SKILL_PATH = process.env.TOPSTAR_VISIT_COACH_SKILL_PATH
+  || (existsSync(PROJECT_SKILL_PATH) ? PROJECT_SKILL_PATH : LEGACY_LOCAL_SKILL_PATH);
 
 const DIRECT_TRIGGER_KEYWORDS = [
   "拜访",
@@ -295,5 +302,29 @@ export function buildVisitCoachRuntimeGuide(message, context) {
       ...DATA_SOURCE_GUIDE,
       addon.addonInstruction,
     ].join("\n"),
+  };
+}
+
+export async function buildVisitCoachRuntimeGuideWithSkill(message, context) {
+  const guide = buildVisitCoachRuntimeGuide(message, context);
+  let skillText = "";
+  try {
+    skillText = await loadVisitCoachSkill();
+  } catch {
+    skillText = "";
+  }
+
+  return {
+    ...guide,
+    prompt: [
+      guide.prompt,
+      skillText
+        ? [
+            "",
+            "以下为项目内置 topstar-visit-coach/SKILL.md 原文，请严格按其中的 SABC 分层、POCC、赢单五步法、BPIDC、N-SABE、LSCPA、BAC/MAC 输出。",
+            skillText.slice(0, 30000),
+          ].join("\n")
+        : "",
+    ].filter(Boolean).join("\n"),
   };
 }
