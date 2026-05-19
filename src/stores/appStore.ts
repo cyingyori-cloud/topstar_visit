@@ -113,7 +113,7 @@ interface AppState {
   triggerCustomerContext: (customerId: string, contextType: string, taskOverride?: VisitTask) => void;
   triggerKnowledgeContext: (item: KnowledgeItem) => void;
   updateVisitTask: (taskId: string, patch: Partial<VisitTask>) => void;
-  sendMessage: (content: string) => void;
+  sendMessage: (content: string, displayContent?: string) => void;
   clearMessages: () => void;
   rateAnswer: (messageId: string, value: FeedbackValue) => void;
   saveAnswer: (messageId: string) => void;
@@ -1327,7 +1327,9 @@ export const useAppStore = create<AppState>((set, get) => {
       const task = taskOverride || get().filteredTasks.find(item => item.customerId === customerId);
 
       let userMessage = '';
+      let displayMessage = '';
       if (contextType === 'task') {
+        displayMessage = `帮我准备${normalizeCompanyNames(customer.name)}的拜访打法`;
         userMessage = [
           `我准备拜访${normalizeCompanyNames(customer.name)}。请结合客户等级、当前商机、商机阶段、历史拜访和拓斯达知识库，给我一份明天能直接使用的拜访打法。`,
           task ? `这次拜访卡片已更新，请严格按以下最新信息生成，不要沿用旧话术：` : '',
@@ -1344,18 +1346,24 @@ export const useAppStore = create<AppState>((set, get) => {
           '输出要求：先判断这次拜访的核心目标，再给开场话术、必问问题、价值/ROI/竞品切入点、BAC/MAC收官承诺；话术必须体现上面最新编辑的信息。',
         ].filter(Boolean).join('\n');
       } else if (contextType === 'completed') {
+        displayMessage = `复盘${normalizeCompanyNames(customer.name)}的拜访情况`;
         userMessage = `复盘${normalizeCompanyNames(customer.name)}的拜访情况。请结合历史拜访和知识库，判断下一步怎么推进商机，并给出跟进话术。`;
       } else if (contextType === 'uncovered') {
+        displayMessage = `帮我重新激活${normalizeCompanyNames(customer.name)}`;
         userMessage = `${normalizeCompanyNames(customer.name)}已经很久没拜访了。请结合客户行业和知识库，给我一套重新激活的拜访打法和开场话术。`;
       } else {
+        displayMessage = `查看${normalizeCompanyNames(customer.name)}客户经营建议`;
         userMessage = `请整理${normalizeCompanyNames(customer.name)}的客户详细信息，包含客户概况、关键联系人、当前商机、商机阶段、最近拜访情况和建议的经营重点。`;
       }
 
-      get().sendMessage(userMessage);
+      get().sendMessage(userMessage, displayMessage);
     },
 
     triggerKnowledgeContext: (item) => {
-      get().sendMessage(`结合拓斯达知识库《${item.title}》和 POCC 方法论，输出可用于客户拜访的关键洞察、开场话术、BPIDC提问链、N-SABE价值呈现和收官承诺。知识内容摘要：${item.content}`);
+      get().sendMessage(
+        `结合拓斯达知识库《${item.title}》和 POCC 方法论，输出可用于客户拜访的关键洞察、开场话术、BPIDC提问链、N-SABE价值呈现和收官承诺。知识内容摘要：${item.content}`,
+        `分析知识库《${normalizeCompanyNames(item.title)}》`,
+      );
     },
 
     updateVisitTask: (taskId, patch) => {
@@ -1377,13 +1385,13 @@ export const useAppStore = create<AppState>((set, get) => {
       });
     },
 
-    sendMessage: async (content) => {
+    sendMessage: async (content, displayContent) => {
       if (!content.trim()) return;
 
       const userMsg: ChatMessage = {
         id: `msg-${++messageIdCounter}`,
         role: 'user',
-        content: content.trim(),
+        content: (displayContent || content).trim(),
         timestamp: new Date(),
       };
 
