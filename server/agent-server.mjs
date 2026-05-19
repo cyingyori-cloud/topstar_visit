@@ -116,6 +116,7 @@ const OPENAI_ENDPOINT_OVERRIDE = process.env.OPENAI_ENDPOINT_OVERRIDE || "";
 const OPENAI_AUTH_HEADER_NAME = process.env.OPENAI_AUTH_HEADER_NAME || "Authorization";
 const OPENAI_AUTH_TOKEN_PREFIX = process.env.OPENAI_AUTH_TOKEN_PREFIX || "Bearer";
 const OPENAI_EXTRA_HEADERS = parseJsonObject(process.env.OPENAI_EXTRA_HEADERS);
+const OPENAI_MAX_TOKENS = Number(process.env.OPENAI_MAX_TOKENS || 4096);
 const ANTHROPIC_AUTH_TOKEN = process.env.ANTHROPIC_AUTH_TOKEN;
 const ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com";
 const ANTHROPIC_VERSION = process.env.ANTHROPIC_VERSION || "2023-06-01";
@@ -1267,14 +1268,14 @@ function buildFastVisitPrepMessages(body, builtInstructions) {
           "请基于以下已取好的客户、任务、知识库和 POCC 数据，直接生成销售拜访作战单。",
           "不要再要求补充信息，不要解释你有哪些功能。",
           "质量优先，速度次之。不要为了短而牺牲客户洞察、知识库依据和话术可用性。",
-          "输出控制在 1500-2200 字：前两屏要能快速扫读，后半部分必须给足客户洞察、话术和推进细节。",
+          "输出控制在 2200-3200 字：前两屏要能快速扫读，后半部分必须给足客户洞察、话术和推进细节。",
           "固定输出结构：## 作战总览；## 先抓 3 个重点；## 马上做什么；## 可复制话术；## 必问三问；## 价值/ROI/竞品切入；## 收官承诺；## 依据。",
           "核心内容优先用 Markdown 表格呈现，但表格单元格要有完整信息，不能只写标题或口号。",
           "作战总览必须用 4 行以内 Markdown 表格，包含客户、阶段、目标、风险。",
-          "先抓 3 个重点必须用表格，列：优先级｜重点｜为什么重要｜你要盯什么。",
-          "马上做什么必须用表格，列：顺序｜动作｜交付物｜现场判断标准。每个动作要具体到销售可执行。",
-          "可复制话术必须用表格，列：场景｜话术｜目的。至少给 4 组话术：开场、需求挖掘、价值/ROI、收官。",
-          "必问三问必须用表格，列：问题｜追问｜目的。问题要能问出预算、决策链、技术卡点或ROI数据。",
+          "先抓 3 个重点必须用表格，列：优先级｜重点｜为什么重要｜你要盯什么。每个单元格必须是完整判断。",
+          "马上做什么必须用表格，列：顺序｜动作｜交付物｜现场判断标准。至少 4 行，每个动作要具体到销售可执行。",
+          "可复制话术必须用表格，列：场景｜话术｜目的。至少 6 组话术：开场、生产痛点、ROI、竞品、评审推进、收官。每段话术不少于 45 个中文字符。",
+          "必问三问必须扩展为 6 问，用表格列：问题｜追问｜目的。问题要能问出预算、决策链、技术卡点或ROI数据。",
           "价值/ROI/竞品切入必须给 3 个角度，每个角度说明客户痛点、拓斯达切入、需要拿到的数据。",
           "收官承诺必须给 BAC 和 MAC 两档，并写出可直接对客户说的话。",
           "依据放最后，列 skill、方法论和知识库主题，并用一句话说明这些依据如何支撑本次打法。",
@@ -1392,7 +1393,7 @@ function instructionsForContext(context) {
     "拜访准备类回答固定使用：1）作战总览；2）先抓 3 个重点；3）马上做什么；4）可复制话术；5）必问三问；6）价值/ROI/竞品切入；7）收官承诺；8）依据。",
     "拜访准备类回答中，作战总览、先抓 3 个重点、马上做什么、可复制话术、必问三问必须优先用 Markdown 表格，不要用长段落堆叠。",
     "作战总览必须用短表格。马上做什么只给 3 个动作。可复制话术必须能直接对客户说。",
-    "普通问答默认控制在 600 字以内；拜访准备/客户打法类回答控制在 1500-2200 字，优先保证客户洞察、知识库融合和话术可用性。",
+    "普通问答默认控制在 600 字以内；拜访准备/客户打法类回答控制在 2200-3200 字，优先保证客户洞察、知识库融合和话术可用性。",
     "每段尽量短，但不能牺牲信息量；单条 bullet 控制在 60 个中文字符以内。用表格组织复杂信息，不要把内容压缩成标题。",
     "回答中必须明确标注：使用了哪个 skill、哪类知识库、哪套方法论；但这部分放在末尾，不要压过行动建议。",
     "如果用户要求生成 Word，先调用 word_generator；如果工具结果包含 exportSpec.downloadUrl 或 artifact.url，必须在回答里给出 Markdown 下载链接，并说明这是可由 Word 打开的 .doc 文件。",
@@ -1487,6 +1488,7 @@ function buildInitialRequest(body) {
       })),
       tool_choice: "auto",
       temperature: 0.3,
+      max_tokens: OPENAI_MAX_TOKENS,
     };
   }
 
@@ -1934,6 +1936,7 @@ async function runAgent(body) {
         })),
         tool_choice: "auto",
         temperature: 0.3,
+        max_tokens: OPENAI_MAX_TOKENS,
       }, runtime);
     }
 
@@ -2124,6 +2127,7 @@ async function runAgentStream(body, runtime, res) {
       })),
       tool_choice: fastPrep ? undefined : "auto",
       temperature: 0.3,
+      max_tokens: fastPrep ? OPENAI_MAX_TOKENS : undefined,
     }, runtime, (delta) => sendEvent(res, "delta", { text: delta }));
 
     if (fastPrep) {
@@ -2181,6 +2185,7 @@ async function runAgentStream(body, runtime, res) {
         })),
         tool_choice: "auto",
         temperature: 0.3,
+        max_tokens: OPENAI_MAX_TOKENS,
       }, runtime, (delta) => sendEvent(res, "delta", { text: delta }));
     }
 
