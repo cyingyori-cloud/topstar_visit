@@ -1507,7 +1507,7 @@ export const useAppStore = create<AppState>((set, get) => {
                 meta: {
                   source: 'agent',
                   answerStage: 'quick',
-                  label: meta?.label || '快速作战摘要',
+                  label: meta?.label || '先看重点',
                 },
               };
               set((currentState) => ({
