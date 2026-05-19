@@ -1157,6 +1157,7 @@ function buildVisitPrepCacheKey(body) {
 }
 
 function findCachedAnswer(body, cacheKey) {
+  if (process.env.AGENT_READ_VISIT_PREP_CACHE !== "true") return null;
   const caches = Array.isArray(body?.context?.customerAnswerCache) ? body.context.customerAnswerCache : [];
   const matched = caches.find((item) => item.cacheKey === cacheKey);
   if (!matched?.content) return null;

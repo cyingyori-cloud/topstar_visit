@@ -1464,9 +1464,7 @@ export const useAppStore = create<AppState>((set, get) => {
               if (cacheMeta?.cacheKey && !cacheMeta.hit) {
                 get().cacheCustomerAnswer(cacheMeta.cacheKey, finalText);
               }
-              const contentText = cacheMeta?.hit
-                ? `> 已读取同客户同商机缓存结果。\n\n${finalText}`
-                : hasInterimAnswer
+              const contentText = hasInterimAnswer
                   ? `## 完整拜访打法\n\n${finalText}`
                   : finalText;
               const aiMsg: ChatMessage = {
