@@ -614,6 +614,172 @@ function TaskCard({ task, highlighted, onTaskClick, onPrepareClick, onDetailClic
   );
 }
 
+const detailStageSteps = ['“收”线索', '“查”信息', '“获”商机', '“做”客情', '“观”案例', '“报”价值', '“约”高层', '“定”商务', '“签”合同', '“收”全款'];
+
+function getStageIndex(stage: string) {
+  const normalizedStage = stage.replace(/[“”"]/g, '');
+  const index = detailStageSteps.findIndex(item => item.replace(/[“”"]/g, '') === normalizedStage);
+  return index >= 0 ? index : 0;
+}
+
+function splitCommitments(expectedCommitment: string | undefined, fallback: string | undefined) {
+  const text = expectedCommitment || fallback || '明确下一步客户承诺和推进节点。';
+  const bacMatch = text.match(/BAC[:：]\s*([^；;]+)[；;]?/);
+  const macMatch = text.match(/MAC[:：]\s*(.+)$/);
+  return {
+    bac: bacMatch?.[1]?.trim() || '推动客户确认进入下一阶段，明确参会人、议题、时间和推进节点。',
+    mac: macMatch?.[1]?.trim() || text,
+  };
+}
+
+function getDecisionTone(item: any) {
+  const text = `${item.role || ''}${item.person || ''}${item.status || ''}`;
+  if (text.includes('高层') || text.includes('决策')) {
+    return { label: '关键决策', bg: '#FEF3C7', color: '#B45309', border: '#FDE68A' };
+  }
+  if (text.includes('Coach') || text.includes('内线') || text.includes('采购')) {
+    return { label: '已建入口', bg: '#DBEAFE', color: '#1D4ED8', border: '#BFDBFE' };
+  }
+  if (text.includes('财务')) {
+    return { label: '待补口径', bg: '#F3E8FF', color: '#7E22CE', border: '#E9D5FF' };
+  }
+  return { label: '待引荐', bg: '#F1F5F9', color: '#475569', border: '#E2E8F0' };
+}
+
+function getContactByKeyword(contacts: any[], keywords: string[]) {
+  return contacts.find(contact => keywords.some(keyword => `${contact.name}${contact.title}`.includes(keyword)));
+}
+
+function getLatestVisit(task: any) {
+  const visits = completedVisits
+    .filter(visit => visit.customerId === task.customerId)
+    .sort((a, b) => b.visitDate.localeCompare(a.visitDate));
+  return visits[0];
+}
+
+function getVisitBasis(task: any, customer: any, latestVisit: any, daysSinceLastVisit: number, opportunityStage: string, opportunityProgress: string) {
+  const lastDate = latestVisit?.visitDate || task.lastVisitDate || '暂无记录';
+  const lastPerson = task.contacts?.[0] ? `${task.contacts[0].name}（${task.contacts[0].title}）` : '待确认';
+  const lastContent = latestVisit?.summary || task.lastVisitSummary || '暂无明确记录';
+  const lastConclusion = latestVisit?.outcome || task.lastVisitSummary || '暂无明确结论';
+  const nextSteps = latestVisit?.nextSteps || task.expectedCommitment || '待确认下一步动作';
+  const daysText = daysSinceLastVisit >= 999 ? '暂无历史拜访记录' : `距上次拜访约${daysSinceLastVisit}天`;
+  const opportunityName = task.opportunityTopic || customer?.currentOpportunity || '当前商机';
+  const staleSignal = daysSinceLastVisit >= 14 && daysSinceLastVisit < 999 ? '已超过两周未推进，商机有冷却风险' : daysText;
+
+  if (task.id === 't6') {
+    return {
+      story: '上次已经完成注塑+组装方案讨论，方案已提交到客户内部评审。现在销售不能只等客户反馈，因为评审周期拉长会让项目热度下降，也会给竞品和预算变化留下窗口。',
+      diagnosis: '当前问题不是客户没有兴趣，而是项目停在“客户内部评审”里：评审结果、评审负责人、ROI材料缺口和下一次复盘会都还没有被锁定。',
+      basis: '欣旺达是A级客户，当前方案已提交14天；商机仍在进行中，但风险提示为“内部评审周期拉长，ROI材料不充分”。这说明系统推荐拜访的核心依据是防止商机冷却，并把等待状态变成可推进动作。',
+      conclusion: '这次不是普通客情回访，而是“方案已提交后的评审推进拜访”。',
+      risk: '如果本次仍只做泛泛客情维护，项目可能继续卡在客户内部评审，销售拿不到复盘会、推进负责人和材料缺口，后续会很难判断真实成交节奏。',
+      action: task.expectedCommitment || '推动客户安排方案复盘会，并确认下一步推进负责人。',
+      items: [
+        { label: '当前进展', value: '注塑+组装机器人单元方案已提交客户内部评审，当前处于“报价值”后的评审等待期。' },
+        { label: '为什么现在拜访', value: '方案已提交14天，A级客户需要持续跟进；如果销售继续等待，客户内部评审容易变慢，竞品或预算变化也可能切入。' },
+        { label: '主要卡点', value: '内部评审周期拉长，ROI材料不充分，客户还没有明确下一步复盘会、推进负责人和补充材料清单。' },
+        { label: '本次主线', value: '先复盘上次提交方案和客户反馈，再问清内部评审进展，最后锁定方案复盘会、补充资料和下一步负责人。' },
+        { label: '必须拿到', value: task.expectedCommitment || '推动客户安排方案复盘会，并确认下一步推进负责人。' },
+      ],
+      history: {
+        date: lastDate,
+        person: lastPerson,
+        content: lastContent,
+        conclusion: lastConclusion,
+        nextSteps,
+      },
+    };
+  }
+
+  return {
+    story: latestVisit
+      ? `上次拜访在${lastDate}完成，围绕“${lastContent}”展开，形成的结论是“${lastConclusion}”。本次拜访需要承接上次结论，继续推进${opportunityName}。`
+      : `该客户当前围绕${opportunityName}存在推进机会，但历史拜访记录不完整，本次需要先补齐客户现场信息和关键联系人判断。`,
+    diagnosis: task.detailSummary || `当前客户处在${opportunityStage}阶段，销售不能只做信息同步，需要判断商机卡点、决策链缺口和下一步承诺。`,
+    basis: `${task.customerLevel}级客户，商机为${opportunityName}，当前阶段${opportunityStage}，进度${opportunityProgress}；${staleSignal}。${task.visitGoal || customer?.opportunityDescription || ''}`,
+    conclusion: task.detailSummary || `这次拜访的核心是推进${opportunityName}，不是简单维护关系；销售要把客户当前状态、评审卡点和下一步承诺一次问清。`,
+    risk: task.opportunityRisk || '如果不及时确认客户真实推进阻力、关键参与人和资料缺口，商机可能继续停留在当前阶段。',
+    action: task.expectedCommitment || '明确下一步客户承诺和推进节点。',
+    items: [
+      { label: '当前进展', value: `${task.customerLevel}级客户，商机为${opportunityName}，当前阶段${opportunityStage}，进度${opportunityProgress}。` },
+      { label: '为什么现在拜访', value: task.visitGoal || customer?.opportunityDescription || `系统根据客户等级、商机状态和最近拜访间隔推荐本次拜访；${staleSignal}。` },
+      { label: '主要卡点', value: task.opportunityRisk || '客户真实推进阻力、内部评审人和资料缺口仍需确认。' },
+      { label: '本次主线', value: task.visitFocus || '确认客户当前评审进展、关键参与人、资料缺口和下一步推进节点。' },
+      { label: '必须拿到', value: task.expectedCommitment || '明确下一步客户承诺和推进节点。' },
+    ],
+    history: {
+      date: lastDate,
+      person: lastPerson,
+      content: lastContent,
+      conclusion: lastConclusion,
+      nextSteps,
+    },
+  };
+}
+
+function getVisitPlaybook(task: any, commitments: { bac: string; mac: string }) {
+  if (task.id === 't8') {
+    return {
+      opening: '刘经理，上次我们已经把注塑取件方案的技术方向做了初步沟通。今天我不想再把时间放在单纯补参数上，而是想和您一起把高层评审要看的几件事准备齐：制造端看节拍、人力和稳定性，财务端看ROI/TCO和回收周期，高层看国产替代、供应稳定和导入风险。我们希望把这件事从采购/技术评估推进到定商务前的正式评审。',
+      questions: [
+        '如果这个项目进入正式评审，赵总最先看的是回本周期、人力节省、稳定性，还是国产替代和供应风险？',
+        '制造/生产负责人和财务评审分别是谁参与？他们各自需要什么数据才愿意往下走？',
+        '我们提交15页以内高层材料时，您建议先给谁预审？商务报价和合同节点通常怎么推进？',
+      ],
+      materials: [
+        { name: '高层会晤材料', timing: '开场后第3-5分钟', script: '这份材料不展开讲技术细节，只让高层快速看到现状痛点、收益、风险和推进路径。', goal: '把议题从补参数升级为高层评审。' },
+        { name: 'ROI/TCO测算底稿', timing: '客户问价格或投入时', script: '单价可以比，但我们建议按三年总成本看：人工、停机、维护、备件、导入周期和良率损失都要算进去。', goal: '避免进入单机比价。' },
+        { name: '深圳比亚迪电子CNC上下料案例', timing: '客户质疑稳定性/落地性时', script: '咱们内部已有自动化复制基础，CNC上下料项目人员40到8人、利用率65%到92%、换型2小时到30分钟。注塑取件也可以按类似逻辑做价值验证。', goal: '用本客户体系内案例建立可信度。' },
+        { name: '注塑取件方案页', timing: '制造端追问节拍和接口时', script: '这页重点看节拍、夹具、接口、验收指标和导入周期，我们会把风险项提前写进方案，不只讲概念。', goal: '让制造端认可可落地。' },
+        { name: '竞品/进口设备对比', timing: '出现进口品牌或竞品对比时', script: '进口设备参数强，但交付周期、备件、服务响应和二次改造成本会影响TCO；拓斯达的本地响应和注塑场景经验是差异点。', goal: '把竞争维度拉到全生命周期价值。' },
+        { name: '政策补贴线索', timing: '高层关注投资合理性时', script: '如果项目纳入国产替代或智能制造改造，可以把政策补贴作为投资评审的加分项，我们会配合整理申报口径。', goal: '降低投资决策阻力。' },
+      ],
+      objections: [
+        { concern: '先把参数补齐再说', response: '参数我们会补齐，但如果没有制造和财务口径，参数补完还是容易进入比价。建议同步把ROI、TCO和高层评审口径建起来。' },
+        { concern: '高层现在未必有时间', response: '可以先约30分钟预评审，不讲长方案，只看现状、回本、风险和推进路径。材料我先给您预审。' },
+        { concern: '价格要和竞品比', response: '可以比，但建议按TCO比：采购价、停机损失、备件周期、服务响应和导入风险一起看。' },
+      ],
+      flow: task.meetingFlow || [],
+      close: `刘经理，今天我想请您帮我定两个动作。最好结果是：${commitments.bac}。如果今天还不能定下来，退一步请您先帮我确认：${commitments.mac}。这样我们下次就不是继续补参数，而是按比亚迪内部评审节奏推进到商务。`,
+    };
+  }
+
+  const opportunity = task.opportunityTopic || '当前商机';
+  const materialSource = task.prepMaterials?.length ? task.prepMaterials : [
+    `${opportunity}方案复盘材料：回顾已提交方案、客户反馈和待补充问题。`,
+    'ROI/价值测算材料：补齐人工、节拍、良率、维护成本和回收周期。',
+    '客户内部评审推进清单：确认评审负责人、参会人、材料提交节点和下一次会议时间。',
+  ];
+  const meetingFlow = task.meetingFlow?.length ? task.meetingFlow : [
+    { step: '复盘上次结论', action: `先确认上次沟通结论：${task.lastVisitSummary || '上次沟通结果待补充'}，再问客户内部评审是否有新反馈。`, desiredSignal: '客户愿意说明评审进展和卡点。' },
+    { step: '确认资料缺口', action: '逐项确认客户还缺方案、ROI、技术参数、案例还是商务口径，避免泛泛跟进。', desiredSignal: '客户说出需要补齐的具体资料。' },
+    { step: '锁定推进人', action: '问清谁负责下一步评审、谁拍板、谁需要提前看材料。', desiredSignal: '拿到下一步负责人或参会人。' },
+    { step: '收口下一步', action: '现场请求明确复盘会/评审会时间，以及会前材料提交节点。', desiredSignal: '获得明确时间、人员或材料清单。' },
+  ];
+
+  return {
+    opening: task.meetingFlow?.[0]?.action || task.detailSummary || task.visitGoal || '先对齐本次拜访目的，再确认客户关注点、资料口径和下一步承诺。',
+    questions: [
+      '这次项目推进到下一阶段，客户内部最关键的判断标准是什么？',
+      '谁会影响最终决策？现在支持、观望和反对的人分别是谁？',
+      '为了拿到下一步承诺，我们会前或会后还需要补齐哪些资料？',
+    ],
+    materials: materialSource.map((item: string, index: number) => ({
+      name: item.split('：')[0] || `资料${index + 1}`,
+      timing: index === 0 ? '开场定调时' : index === 1 ? '客户问投入产出时' : '客户提出顾虑时',
+      script: item,
+      goal: index === 0 ? '统一客户评审口径。' : index === 1 ? '证明投资合理性。' : '支撑客户继续推进。'
+    })),
+    flow: meetingFlow,
+    objections: [
+      { concern: '客户说再看看', response: '理解，我们先不急着推进结论。能否先确认下一步需要补哪三类信息，以及由谁来判断？' },
+      { concern: '客户只看价格', response: '价格一定会给到，但建议同时看导入周期、维护成本、稳定性和停机损失，避免只看采购价。' },
+    ],
+    close: `本次至少要拿到：${commitments.mac}。最佳结果是：${commitments.bac}`,
+  };
+}
+
 function VisitDetailModal({ task, onClose, onPrepare }: { task: any; onClose: () => void; onPrepare: () => void; }) {
   if (!task) return null;
   const customer = customers.find(c => c.id === task.customerId);
@@ -623,6 +789,15 @@ function VisitDetailModal({ task, onClose, onPrepare }: { task: any; onClose: ()
   const opportunityProgress = customer ? `${customer.opportunityPercent}%` : (hasOpportunity ? '待补充' : '未进入商机');
   const contactsText = task.contacts.map((c: any) => `${c.name}（${c.title}）`).join('、');
   const health = getHealthMeta(task.healthScore || 70, task.healthTrend || 'flat');
+  const daysSinceLastVisit = getDaysSinceLastVisit(task.customerId);
+  const latestVisit = getLatestVisit(task);
+  const stageIndex = getStageIndex(opportunityStage);
+  const nextStage = detailStageSteps[stageIndex + 1] || '推进闭环';
+  const commitments = splitCommitments(task.expectedCommitment, task.detailObjective);
+  const playbook = getVisitPlaybook(task, commitments);
+  const visitBasis = getVisitBasis(task, customer, latestVisit, daysSinceLastVisit, opportunityStage, opportunityProgress);
+  const decisionContact = getContactByKeyword(task.contacts || [], ['高层', '决策', '赵总']);
+  const coachContact = getContactByKeyword(task.contacts || [], ['采购', '刘经理', 'Coach', '内线']);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.35)' }} onClick={onClose}>
@@ -647,128 +822,267 @@ function VisitDetailModal({ task, onClose, onPrepare }: { task: any; onClose: ()
         </div>
 
         <div className="px-5 py-4 space-y-4 max-h-[76vh] overflow-y-auto">
-          <div className="grid grid-cols-4 gap-3 text-sm">
-            <DetailItem label="拜访主题" value={task.visitPurpose} />
-            <DetailItem label="拜访对象" value={contactsText} />
-            <DetailItem label="拜访地点" value={task.location} />
-            <DetailItem label="历史拜访" value={`${customer?.visitCount || 0}次历史拜访 · 上次：${task.lastVisitDate || '暂无'}`} />
-          </div>
-
-          <div className="grid grid-cols-[1.1fr_0.9fr] gap-3">
-            <div className="rounded-xl px-4 py-3 border" style={{ backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }}>
-              <div className="flex items-center justify-between gap-3 mb-2">
-                <div className="text-sm font-semibold" style={{ color: '#1D4ED8' }}>本次拜访一句话判断</div>
-                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#FFFFFF', color: '#1D4ED8' }}>{opportunityStage}</span>
-              </div>
-              <div className="text-sm leading-relaxed" style={{ color: '#1E293B' }}>
-                {task.detailSummary || task.visitGoal}
+          <div className="rounded-2xl border overflow-hidden" style={{ borderColor: '#DCE6F2', backgroundColor: '#FFFFFF' }}>
+            <div className="px-4 py-3 border-b" style={{ backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' }}>
+              <div className="grid grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr_1fr] gap-3 text-sm">
+                <DetailItem label="拜访主题" value={task.visitPurpose} />
+                <DetailItem label="正式对象" value={decisionContact ? `${decisionContact.name}（${decisionContact.title}）` : contactsText} />
+                <DetailItem label="内线/入口" value={coachContact ? `${coachContact.name}（${coachContact.title}）` : contactsText} />
+                <DetailItem label="地点/历史" value={`${task.location} · ${customer?.visitCount || 0}次`} />
               </div>
             </div>
 
-            <div className="rounded-xl px-4 py-3 border" style={{ backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }}>
-              <div className="text-sm font-semibold mb-2" style={{ color: '#15803D' }}>本次必须拿到</div>
-              <div className="text-sm leading-relaxed" style={{ color: '#1E293B' }}>
-                {task.detailObjective || task.expectedCommitment}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            {hasOpportunity ? (
-              <div className="rounded-xl px-3 py-3" style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0' }}>
-                <div className="text-sm font-semibold mb-2" style={{ color: '#15803D' }}>商机信息</div>
-                <div className="space-y-1.5 text-sm" style={{ color: '#334155' }}>
-                  <InfoLine label="商机名称" value={opportunityMain} />
-                  <InfoLine label="商机阶段" value={opportunityStage} />
-                  <InfoLine label="当前进度" value={opportunityProgress} />
-                  <InfoLine label="风险提示" value={task.opportunityRisk || '暂无明确风险'} />
-                </div>
-              </div>
-            ) : null}
-
-            <div className="rounded-xl px-3 py-3" style={{ backgroundColor: health.bg, border: `1px solid ${health.color}30` }}>
-              <div className="text-sm font-semibold mb-2" style={{ color: health.color }}>客户健康度：{health.level}</div>
-              <div className="text-sm mb-2" style={{ color: '#334155' }}>
-                总分 {task.healthScore || 70}/100 · 趋势 {health.trendArrow} {health.trendText}
-              </div>
-              <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#E5E7EB' }}>
-                <div className="h-full rounded-full" style={{ width: `${task.healthScore || 70}%`, backgroundColor: health.color }} />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <DetailBlock title="推荐拜访原因" content={task.visitGoal} tone="reason" />
-            <DetailBlock title={hasOpportunity ? '推进重点' : '线索目标'} content={hasOpportunity ? (task.expectedCommitment || task.visitFocus) : (task.visitFocus || '建立关系、摸清产线痛点与潜在切入口。')} tone="focus" />
-          </div>
-
-          {task.decisionChain?.length ? (
-            <DetailSection title="决策链与本次动作">
-              <div className="overflow-hidden rounded-xl border" style={{ borderColor: '#E2E8F0' }}>
-                <div className="grid grid-cols-[0.8fr_1fr_1.2fr_1.6fr] text-xs font-semibold" style={{ backgroundColor: '#F8FAFC', color: '#475569' }}>
-                  <div className="px-3 py-2 border-r border-slate-200">角色</div>
-                  <div className="px-3 py-2 border-r border-slate-200">对象</div>
-                  <div className="px-3 py-2 border-r border-slate-200">当前状态</div>
-                  <div className="px-3 py-2">销售动作</div>
-                </div>
-                {task.decisionChain.map((item: any, index: number) => (
-                  <div key={`${item.role}-${index}`} className="grid grid-cols-[0.8fr_1fr_1.2fr_1.6fr] text-sm border-t" style={{ borderColor: '#E2E8F0', color: '#334155' }}>
-                    <div className="px-3 py-2 font-semibold border-r border-slate-100" style={{ color: '#1F2329' }}>{item.role}</div>
-                    <div className="px-3 py-2 border-r border-slate-100">{item.person}</div>
-                    <div className="px-3 py-2 border-r border-slate-100">{item.status}</div>
-                    <div className="px-3 py-2 leading-relaxed">{item.action}</div>
-                  </div>
-                ))}
-              </div>
-            </DetailSection>
-          ) : null}
-
-          {task.keyIssues?.length ? (
-            <DetailSection title="客户高层可能关注什么">
-              <div className="grid grid-cols-2 gap-3">
-                {task.keyIssues.map((item: any, index: number) => (
-                  <div key={`${item.issue}-${index}`} className="rounded-xl px-3 py-3 border" style={{ backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }}>
-                    <div className="text-sm font-semibold mb-1.5" style={{ color: '#92400E' }}>{item.issue}</div>
-                    <div className="text-sm leading-relaxed" style={{ color: '#334155' }}>{item.salesAngle}</div>
-                  </div>
-                ))}
-              </div>
-            </DetailSection>
-          ) : null}
-
-          {task.prepMaterials?.length ? (
-            <DetailSection title="会前资料清单">
-              <div className="grid grid-cols-2 gap-2">
-                {task.prepMaterials.map((item: string, index: number) => (
-                  <div key={`${item}-${index}`} className="flex items-start gap-2 rounded-lg px-3 py-2 border" style={{ backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' }}>
-                    <span className="mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold flex-shrink-0" style={{ backgroundColor: '#DBEAFE', color: '#1D4ED8' }}>{index + 1}</span>
-                    <span className="text-sm leading-relaxed" style={{ color: '#334155' }}>{item}</span>
-                  </div>
-                ))}
-              </div>
-            </DetailSection>
-          ) : null}
-
-          {task.meetingFlow?.length ? (
-            <DetailSection title="现场推进节奏">
-              <div className="grid grid-cols-4 gap-2">
-                {task.meetingFlow.map((item: any, index: number) => (
-                  <div key={`${item.step}-${index}`} className="rounded-xl px-3 py-3 border" style={{ backgroundColor: '#FFFFFF', borderColor: '#D7DEE8' }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold" style={{ backgroundColor: '#EEF2FF', color: '#4338CA' }}>{index + 1}</span>
-                      <span className="text-sm font-semibold" style={{ color: '#1F2329' }}>{item.step}</span>
+            <div className="p-4 space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-[1.25fr_0.75fr] gap-4">
+                <div className="rounded-xl border px-4 py-3" style={{ backgroundColor: '#FBFDFF', borderColor: '#DCE6F2' }}>
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div>
+                      <div className="text-sm font-semibold" style={{ color: '#1F2329' }}>商机态势诊断</div>
+                      <div className="text-xs mt-1" style={{ color: '#64748B' }}>{opportunityMain}</div>
                     </div>
-                    <div className="text-sm leading-relaxed mb-2" style={{ color: '#334155' }}>{item.action}</div>
-                    <div className="text-xs leading-relaxed rounded-lg px-2 py-1.5" style={{ backgroundColor: '#ECFDF5', color: '#047857' }}>
-                      信号：{item.desiredSignal}
+                    <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8' }}>
+                      当前：{opportunityStage}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
+                    <DiagnosticMetric label="商机金额" value={customer ? `¥${customer.opportunityAmount}万` : '-'} />
+                    <DiagnosticMetric label="赢率/进度" value={opportunityProgress} />
+                    <DiagnosticMetric label="上次拜访" value={task.lastVisitDate || '暂无'} sub={`${daysSinceLastVisit >= 999 ? '暂无记录' : `${daysSinceLastVisit}天前`}`} />
+                    <DiagnosticMetric label="下一阶段" value={nextStage} />
+                  </div>
+
+                  <StageTimeline currentIndex={stageIndex} />
+
+                  <div className="mt-4 rounded-lg px-3 py-2 border flex items-start gap-2" style={{ backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }}>
+                    <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#EA580C' }} />
+                    <div>
+                      <div className="text-xs font-semibold mb-1" style={{ color: '#C2410C' }}>本次关键风险</div>
+                      <div className="text-sm leading-relaxed" style={{ color: '#334155' }}>{task.opportunityRisk || '需要确认客户真实风险点和下一步推进阻力。'}</div>
                     </div>
                   </div>
+                </div>
+
+                <div className="rounded-xl border px-4 py-3" style={{ backgroundColor: health.bg, borderColor: `${health.color}40` }}>
+                  <div className="text-sm font-semibold mb-3" style={{ color: health.color }}>客户健康度</div>
+                  <div className="flex items-end gap-2 mb-2">
+                    <span className="text-3xl font-semibold leading-none" style={{ color: health.color }}>{task.healthScore || 70}</span>
+                    <span className="text-sm pb-0.5" style={{ color: '#64748B' }}>/100 · {health.level}</span>
+                  </div>
+                  <div className="h-2 rounded-full overflow-hidden mb-3" style={{ backgroundColor: '#E5E7EB' }}>
+                    <div className="h-full rounded-full" style={{ width: `${task.healthScore || 70}%`, backgroundColor: health.color }} />
+                  </div>
+                  <div className="text-sm leading-relaxed" style={{ color: '#334155' }}>
+                    趋势 {health.trendArrow} {health.trendText}。本次要把采购入口转成高层认可、财务口径和商务动作。
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border px-4 py-3" style={{ backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' }}>
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="text-sm font-semibold" style={{ color: '#1F2329' }}>本次拜访目标</div>
+                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#FFFFFF', color: '#64748B' }}>目标从“讲方案”转为“推商务”</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <CommitmentCard title="BAC · 最好承诺" content={commitments.bac} tone="primary" />
+                  <CommitmentCard title="MAC · 最低承诺" content={commitments.mac} tone="secondary" />
+                </div>
+                <div className="mt-3 text-sm leading-relaxed px-3 py-2 rounded-lg" style={{ backgroundColor: '#FFFFFF', color: '#334155', border: '1px solid #E2E8F0' }}>
+                  <span className="font-semibold" style={{ color: '#1F2329' }}>一句话判断：</span>{task.detailSummary || task.visitGoal}
+                </div>
+              </div>
+
+              {task.decisionChain?.length ? (
+                <div className="rounded-xl border px-4 py-3" style={{ backgroundColor: '#FFFFFF', borderColor: '#E2E8F0' }}>
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="text-sm font-semibold" style={{ color: '#1F2329' }}>决策链画像</div>
+                    <div className="text-xs" style={{ color: '#64748B' }}>先借入口，再补齐制造/财务/高层</div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                    {task.decisionChain.map((item: any, index: number) => (
+                      <DecisionRoleCard key={`${item.role}-${index}`} item={item} />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-3">
+                <DetailBlock title="销售判断" content={task.visitGoal} tone="reason" />
+                <DetailBlock title={hasOpportunity ? '推进重点' : '线索目标'} content={hasOpportunity ? (task.visitFocus || task.expectedCommitment) : (task.visitFocus || '建立关系、摸清产线痛点与潜在切入口。')} tone="focus" />
+              </div>
+            </div>
+          </div>
+
+          <DetailSection title="拜访依据与推荐分析">
+            <div className="space-y-3">
+              <div className="rounded-xl border overflow-hidden" style={{ borderColor: '#DCE6F2', backgroundColor: '#FFFFFF' }}>
+                <div className="grid grid-cols-[108px_1fr] border-b" style={{ borderColor: '#E2E8F0' }}>
+                  <div className="px-3 py-3 text-sm font-semibold" style={{ backgroundColor: '#F8FAFC', color: '#1F2329' }}>故事背景</div>
+                  <div className="px-4 py-3 text-sm leading-relaxed" style={{ color: '#334155' }}>{visitBasis.story}</div>
+                </div>
+                <div className="grid grid-cols-[108px_1fr] border-b" style={{ borderColor: '#E2E8F0' }}>
+                  <div className="px-3 py-3 text-sm font-semibold" style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8' }}>诊断</div>
+                  <div className="px-4 py-3 text-sm leading-relaxed" style={{ color: '#1E293B' }}>{visitBasis.diagnosis}</div>
+                </div>
+                <div className="grid grid-cols-[108px_1fr] border-b" style={{ borderColor: '#E2E8F0' }}>
+                  <div className="px-3 py-3 text-sm font-semibold" style={{ backgroundColor: '#F8FAFC', color: '#475569' }}>依据</div>
+                  <div className="px-4 py-3 text-sm leading-relaxed" style={{ color: '#334155' }}>{visitBasis.basis}</div>
+                </div>
+                <div className="grid grid-cols-[108px_1fr] border-b" style={{ borderColor: '#E2E8F0' }}>
+                  <div className="px-3 py-3 text-sm font-semibold" style={{ backgroundColor: '#ECFDF5', color: '#047857' }}>结论</div>
+                  <div className="px-4 py-3 text-sm leading-relaxed font-medium" style={{ color: '#1F2329' }}>{visitBasis.conclusion}</div>
+                </div>
+                <div className="grid grid-cols-[108px_1fr] border-b" style={{ borderColor: '#E2E8F0' }}>
+                  <div className="px-3 py-3 text-sm font-semibold" style={{ backgroundColor: '#FFF7ED', color: '#C2410C' }}>风险</div>
+                  <div className="px-4 py-3 text-sm leading-relaxed" style={{ color: '#334155' }}>{visitBasis.risk}</div>
+                </div>
+                <div className="grid grid-cols-[108px_1fr]">
+                  <div className="px-3 py-3 text-sm font-semibold" style={{ backgroundColor: '#F0FDF4', color: '#15803D' }}>动作</div>
+                  <div className="px-4 py-3 text-sm leading-relaxed font-medium" style={{ color: '#1F2329' }}>{visitBasis.action}</div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border overflow-hidden" style={{ borderColor: '#E2E8F0' }}>
+                <div className="px-4 py-2 text-sm font-semibold" style={{ backgroundColor: '#F8FAFC', color: '#1F2329' }}>历史拜访情况</div>
+                <div className="grid grid-cols-[0.8fr_1fr_1.45fr_1.45fr_1.3fr] text-xs font-semibold border-t" style={{ borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', color: '#475569' }}>
+                  <div className="px-3 py-2 border-r border-slate-200">时间</div>
+                  <div className="px-3 py-2 border-r border-slate-200">人物</div>
+                  <div className="px-3 py-2 border-r border-slate-200">内容</div>
+                  <div className="px-3 py-2 border-r border-slate-200">结论</div>
+                  <div className="px-3 py-2">下一步</div>
+                </div>
+                <div className="grid grid-cols-[0.8fr_1fr_1.45fr_1.45fr_1.3fr] text-sm border-t" style={{ borderColor: '#E2E8F0', color: '#334155' }}>
+                  <div className="px-3 py-2 border-r border-slate-100 font-medium" style={{ color: '#1F2329' }}>{visitBasis.history.date}</div>
+                  <div className="px-3 py-2 border-r border-slate-100">{visitBasis.history.person}</div>
+                  <div className="px-3 py-2 border-r border-slate-100 leading-relaxed">{visitBasis.history.content}</div>
+                  <div className="px-3 py-2 border-r border-slate-100 leading-relaxed">{visitBasis.history.conclusion}</div>
+                  <div className="px-3 py-2 leading-relaxed">{visitBasis.history.nextSteps}</div>
+                </div>
+              </div>
+            </div>
+          </DetailSection>
+
+          <DetailSection title="拜访打法与资料使用">
+            <div className="space-y-4">
+              <div className="rounded-xl border overflow-hidden" style={{ borderColor: '#BFDBFE', backgroundColor: '#EFF6FF' }}>
+                <div className="px-4 py-3 border-b" style={{ borderColor: '#BFDBFE' }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold" style={{ color: '#1D4ED8' }}>1. 现场怎么开场</div>
+                    <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#FFFFFF', color: '#1D4ED8' }}>可直接照着说</span>
+                  </div>
+                </div>
+                <div className="px-4 py-3 text-sm leading-relaxed" style={{ color: '#1E293B' }}>
+                  “{playbook.opening}”
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-3">
+                <div className="rounded-xl border px-4 py-3" style={{ backgroundColor: '#FFFFFF', borderColor: '#E2E8F0' }}>
+                  <div className="text-sm font-semibold mb-3" style={{ color: '#1F2329' }}>2. 必问问题</div>
+                  <div className="space-y-2">
+                    {playbook.questions.map((question: string, index: number) => (
+                      <div key={`${question}-${index}`} className="flex gap-2 text-sm leading-relaxed" style={{ color: '#334155' }}>
+                        <span className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0" style={{ backgroundColor: '#DBEAFE', color: '#1D4ED8' }}>{index + 1}</span>
+                        <span>“{question}”</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-xl px-4 py-3 border" style={{ backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }}>
+                  <div className="text-sm font-semibold mb-3" style={{ color: '#15803D' }}>3. 收官怎么要承诺</div>
+                  <div className="text-sm leading-relaxed mb-3" style={{ color: '#1E293B' }}>“{playbook.close}”</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <InfoPair label="BAC" value={commitments.bac} />
+                    <InfoPair label="MAC" value={commitments.mac} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border overflow-hidden" style={{ borderColor: '#E2E8F0' }}>
+                <div className="grid grid-cols-[1fr_1fr_1.35fr_0.9fr] text-xs font-semibold" style={{ backgroundColor: '#F8FAFC', color: '#475569' }}>
+                  <div className="px-3 py-2 border-r border-slate-200">资料</div>
+                  <div className="px-3 py-2 border-r border-slate-200">什么时候用</div>
+                  <div className="px-3 py-2 border-r border-slate-200">怎么说</div>
+                  <div className="px-3 py-2">目的</div>
+                </div>
+                {playbook.materials.map((item: any, index: number) => (
+                  <div key={`${item.name}-${index}`} className="grid grid-cols-[1fr_1fr_1.35fr_0.9fr] text-sm border-t" style={{ borderColor: '#E2E8F0', color: '#334155' }}>
+                    <div className="px-3 py-2 font-semibold border-r border-slate-100" style={{ color: '#1F2329' }}>{item.name}</div>
+                    <div className="px-3 py-2 border-r border-slate-100">{item.timing}</div>
+                    <div className="px-3 py-2 border-r border-slate-100 leading-relaxed">“{item.script}”</div>
+                    <div className="px-3 py-2 leading-relaxed">{item.goal}</div>
+                  </div>
                 ))}
               </div>
-            </DetailSection>
-          ) : null}
 
-          <DetailBlock title="上次拜访情况" content={task.lastVisitSummary || '暂无历史摘要'} />
+              <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-3">
+                <div className="rounded-xl border px-4 py-3" style={{ backgroundColor: '#FFFFFF', borderColor: '#E2E8F0' }}>
+                  <div className="text-sm font-semibold mb-3" style={{ color: '#1F2329' }}>4. 现场推进节奏</div>
+                  <div className="space-y-2">
+                    {playbook.flow.map((item: any, index: number) => (
+                      <div key={`${item.step}-${index}`} className="rounded-lg px-3 py-2" style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold" style={{ backgroundColor: '#EEF2FF', color: '#4338CA' }}>{index + 1}</span>
+                          <span className="text-sm font-semibold" style={{ color: '#1F2329' }}>{item.step}</span>
+                        </div>
+                        <div className="text-sm leading-relaxed" style={{ color: '#334155' }}>{item.action}</div>
+                        <div className="text-xs mt-1" style={{ color: '#047857' }}>目标信号：{item.desiredSignal}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border px-4 py-3" style={{ backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }}>
+                  <div className="text-sm font-semibold mb-3" style={{ color: '#92400E' }}>5. 顾虑怎么回应</div>
+                  <div className="space-y-2">
+                    {playbook.objections.map((item: any, index: number) => (
+                      <div key={`${item.concern}-${index}`} className="rounded-lg px-3 py-2" style={{ backgroundColor: '#FFFFFF', border: '1px solid #FDE68A' }}>
+                        <div className="text-sm font-semibold mb-1" style={{ color: '#92400E' }}>{item.concern}</div>
+                        <div className="text-sm leading-relaxed" style={{ color: '#334155' }}>“{item.response}”</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {task.keyIssues?.length ? (
+                <div className="rounded-xl border px-4 py-3" style={{ backgroundColor: '#FFFFFF', borderColor: '#E2E8F0' }}>
+                  <div className="text-sm font-semibold mb-3" style={{ color: '#1F2329' }}>6. 资料背后的高层关注点</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {task.keyIssues.map((item: any, index: number) => (
+                      <div key={`${item.issue}-${index}`} className="rounded-lg px-3 py-2" style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+                        <div className="text-sm font-semibold mb-1" style={{ color: '#1F2329' }}>{item.issue}</div>
+                        <div className="text-sm leading-relaxed" style={{ color: '#334155' }}>{item.salesAngle}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {task.decisionChain?.length ? (
+                <DetailSection title="决策链与本次动作">
+                  <div className="overflow-hidden rounded-xl border" style={{ borderColor: '#E2E8F0' }}>
+                    <div className="grid grid-cols-[0.8fr_1fr_1.2fr_1.6fr] text-xs font-semibold" style={{ backgroundColor: '#F8FAFC', color: '#475569' }}>
+                      <div className="px-3 py-2 border-r border-slate-200">角色</div>
+                      <div className="px-3 py-2 border-r border-slate-200">对象</div>
+                      <div className="px-3 py-2 border-r border-slate-200">当前状态</div>
+                      <div className="px-3 py-2">销售动作</div>
+                    </div>
+                    {task.decisionChain.map((item: any, index: number) => (
+                      <div key={`${item.role}-${index}`} className="grid grid-cols-[0.8fr_1fr_1.2fr_1.6fr] text-sm border-t" style={{ borderColor: '#E2E8F0', color: '#334155' }}>
+                        <div className="px-3 py-2 font-semibold border-r border-slate-100" style={{ color: '#1F2329' }}>{item.role}</div>
+                        <div className="px-3 py-2 border-r border-slate-100">{item.person}</div>
+                        <div className="px-3 py-2 border-r border-slate-100">{item.status}</div>
+                        <div className="px-3 py-2 leading-relaxed">{item.action}</div>
+                      </div>
+                    ))}
+                  </div>
+                </DetailSection>
+              ) : null}
+            </div>
+          </DetailSection>
+
         </div>
 
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100">
@@ -1073,9 +1387,79 @@ function ConfirmVisitModal({
 
 function DetailItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="px-3 py-2 rounded-lg" style={{ backgroundColor: '#F8FAFC' }}>
+    <div className="px-3 py-2 rounded-lg" style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0' }}>
       <div className="text-xs mb-1" style={{ color: '#8F959E' }}>{label}</div>
-      <div className="text-sm font-medium" style={{ color: '#1F2329' }}>{value}</div>
+      <div className="text-sm font-medium leading-snug" style={{ color: '#1F2329' }}>{value}</div>
+    </div>
+  );
+}
+
+function DiagnosticMetric({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="rounded-lg px-3 py-2" style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+      <div className="text-[11px] mb-1" style={{ color: '#64748B' }}>{label}</div>
+      <div className="text-sm font-semibold leading-snug" style={{ color: '#1F2329' }}>{value}</div>
+      {sub ? <div className="text-[11px] mt-0.5" style={{ color: '#94A3B8' }}>{sub}</div> : null}
+    </div>
+  );
+}
+
+function StageTimeline({ currentIndex }: { currentIndex: number }) {
+  return (
+    <div>
+      <div className="flex items-center gap-1.5">
+        {detailStageSteps.map((stage, index) => {
+          const done = index < currentIndex;
+          const current = index === currentIndex;
+          const color = current ? '#2563EB' : done ? '#16A34A' : '#CBD5E1';
+          return (
+            <div key={stage} className="flex-1 min-w-0">
+              <div className="h-1.5 rounded-full mb-1.5" style={{ backgroundColor: color }} />
+              <div
+                className="text-[10px] leading-tight truncate"
+                title={stage}
+                style={{ color: current ? '#1D4ED8' : done ? '#15803D' : '#94A3B8', fontWeight: current ? 700 : 500 }}
+              >
+                {stage.replace(/[“”]/g, '')}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CommitmentCard({ title, content, tone }: { title: string; content: string; tone: 'primary' | 'secondary' }) {
+  const styles = tone === 'primary'
+    ? { bg: '#EFF6FF', border: '#BFDBFE', title: '#1D4ED8', mark: '#2563EB' }
+    : { bg: '#ECFDF5', border: '#BBF7D0', title: '#047857', mark: '#16A34A' };
+  return (
+    <div className="rounded-xl border px-3 py-3 relative overflow-hidden" style={{ backgroundColor: styles.bg, borderColor: styles.border }}>
+      <div className="absolute left-0 top-0 h-full w-1" style={{ backgroundColor: styles.mark }} />
+      <div className="text-sm font-semibold mb-2 pl-1" style={{ color: styles.title }}>{title}</div>
+      <div className="text-sm leading-relaxed pl-1" style={{ color: '#1E293B' }}>{content}</div>
+    </div>
+  );
+}
+
+function DecisionRoleCard({ item }: { item: any }) {
+  const tone = getDecisionTone(item);
+  return (
+    <div className="rounded-xl border px-3 py-3 min-h-[150px] flex flex-col" style={{ backgroundColor: '#FBFDFF', borderColor: tone.border }}>
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div>
+          <div className="text-sm font-semibold leading-snug" style={{ color: '#1F2329' }}>{item.role}</div>
+          <div className="text-xs mt-1 leading-snug" style={{ color: '#64748B' }}>{item.person}</div>
+        </div>
+        <span className="text-[11px] px-2 py-0.5 rounded-full shrink-0" style={{ backgroundColor: tone.bg, color: tone.color }}>
+          {tone.label}
+        </span>
+      </div>
+      <div className="text-xs leading-relaxed mb-2" style={{ color: '#475569' }}>{item.status}</div>
+      <div className="mt-auto text-xs leading-relaxed rounded-lg px-2 py-2" style={{ backgroundColor: '#F8FAFC', color: '#334155' }}>
+        <span className="font-semibold" style={{ color: '#1F2329' }}>动作：</span>{item.action}
+      </div>
     </div>
   );
 }
