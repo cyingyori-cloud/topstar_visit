@@ -692,6 +692,31 @@ function getVisitBasis(task: any, customer: any, latestVisit: any, daysSinceLast
     };
   }
 
+  if (task.id === 't8') {
+    return {
+      story: '上次已和刘经理完成注塑取件方案初步沟通，采购侧认可继续评估，但客户要求补充技术参数。现在项目表面上是在补参数，实际已经进入是否能被制造、财务和高层共同认可的关键节点。',
+      diagnosis: '当前卡点不是方案有没有技术方向，而是项目还停留在采购/技术评估层：制造端的节拍、人力、稳定性口径没有被确认，财务端的ROI/TCO测算口径没有被锁定，高层也还没有进入正式评审。如果继续只补技术参数，项目容易被拉回单机比价。',
+      basis: '深圳比亚迪电子是A级客户，商机金额约55万，阶段为“约”高层、赢率45%；上次拜访结论是“需补充技术参数”。结合高层拜访资料和POCC推进逻辑，本阶段应从“补材料”升级为“补决策链、补ROI口径、约高层评审”。',
+      conclusion: '这次拜访的核心是借刘经理采购入口，把项目推进到制造、财务和高层共同评审，并为进入“定商务”创造条件。',
+      risk: '如果本次仍停留在参数补充，客户会继续按设备采购逻辑比较价格，拓斯达的国产替代、服务响应、TCO/ROI和案例价值无法进入高层决策桌面。',
+      action: task.expectedCommitment || '推动客户确认进入“定商务”，并拿到TCO/ROI数据、财务口径、审批链和下一次商务沟通时间。',
+      items: [
+        { label: '当前进展', value: '注塑取件方案已完成初步沟通，采购侧认可继续评估，但仍停留在补充技术参数阶段。' },
+        { label: '为什么现在拜访', value: '项目已经到“约高层”阶段，需要在参数之外补齐制造、财务和高层的评审口径，否则会被拖入比价。' },
+        { label: '主要卡点', value: '制造端价值、财务ROI/TCO、高层国产替代和供应稳定议题还没有被统一成正式评审材料。' },
+        { label: '本次主线', value: '请刘经理帮助判断高层关注点、制造/财务参与人和会前材料口径，并推动一次高层方案评审。' },
+        { label: '必须拿到', value: task.expectedCommitment || '明确高层评审会时间、参会人、议题和下一步商务推进节点。' },
+      ],
+      history: {
+        date: lastDate,
+        person: '刘经理（设备采购经理）',
+        content: lastContent,
+        conclusion: lastConclusion,
+        nextSteps,
+      },
+    };
+  }
+
   return {
     story: latestVisit
       ? `上次拜访在${lastDate}完成，围绕“${lastContent}”展开，形成的结论是“${lastConclusion}”。本次拜访需要承接上次结论，继续推进${opportunityName}。`
