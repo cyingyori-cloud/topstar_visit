@@ -1060,26 +1060,6 @@ function VisitDetailModal({ task, onClose, onPrepare }: { task: any; onClose: ()
                 </div>
               ) : null}
 
-              {task.decisionChain?.length ? (
-                <DetailSection title="决策链与本次动作">
-                  <div className="overflow-hidden rounded-xl border" style={{ borderColor: '#E2E8F0' }}>
-                    <div className="grid grid-cols-[0.8fr_1fr_1.2fr_1.6fr] text-xs font-semibold" style={{ backgroundColor: '#F8FAFC', color: '#475569' }}>
-                      <div className="px-3 py-2 border-r border-slate-200">角色</div>
-                      <div className="px-3 py-2 border-r border-slate-200">对象</div>
-                      <div className="px-3 py-2 border-r border-slate-200">当前状态</div>
-                      <div className="px-3 py-2">销售动作</div>
-                    </div>
-                    {task.decisionChain.map((item: any, index: number) => (
-                      <div key={`${item.role}-${index}`} className="grid grid-cols-[0.8fr_1fr_1.2fr_1.6fr] text-sm border-t" style={{ borderColor: '#E2E8F0', color: '#334155' }}>
-                        <div className="px-3 py-2 font-semibold border-r border-slate-100" style={{ color: '#1F2329' }}>{item.role}</div>
-                        <div className="px-3 py-2 border-r border-slate-100">{item.person}</div>
-                        <div className="px-3 py-2 border-r border-slate-100">{item.status}</div>
-                        <div className="px-3 py-2 leading-relaxed">{item.action}</div>
-                      </div>
-                    ))}
-                  </div>
-                </DetailSection>
-              ) : null}
             </div>
           </DetailSection>
 
