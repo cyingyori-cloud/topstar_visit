@@ -9,7 +9,7 @@ import { buildVisitCoachRuntimeGuideWithSkill, hasVisitCoachSkillFile, shouldUse
 const KNOWLEDGE_DIR = process.env.KNOWLEDGE_DIR || "./knowledge";
 const ARTIFACT_DIR = process.env.ARTIFACT_DIR || "./server/artifacts";
 const PUBLIC_AGENT_BASE_URL = (process.env.PUBLIC_AGENT_BASE_URL || process.env.RENDER_EXTERNAL_URL || "https://topstar-visit.onrender.com").replace(/\/$/, "");
-const ANSWER_PRESENTATION_VERSION = "answer-presentation-v3-table";
+const ANSWER_PRESENTATION_VERSION = "answer-presentation-v4-pocc";
 let KNOWLEDGE_BASE = "";
 let KNOWLEDGE_FILES = [];
 let KNOWLEDGE_CHUNKS = [];
@@ -72,6 +72,51 @@ function searchKnowledgeChunks(query, limit = 6) {
       heading: chunk.heading,
       excerpt: excerptText(chunk.content, 700),
     }));
+}
+
+function getKnowledgeChunksByTitle(titleKeyword, limit = 6) {
+  const keyword = normalizeSearchText(titleKeyword);
+  if (!keyword) return [];
+  return KNOWLEDGE_CHUNKS
+    .filter((chunk) => chunk.searchText.includes(keyword) || normalizeSearchText(chunk.title).includes(keyword))
+    .slice(0, limit)
+    .map((chunk) => ({
+      title: chunk.title,
+      heading: chunk.heading,
+      excerpt: excerptText(chunk.content, 900),
+      forceIncluded: true,
+    }));
+}
+
+function getKnowledgeChunksByHeading(titleKeyword, headingKeywords = [], limit = 8) {
+  const title = normalizeSearchText(titleKeyword);
+  const headings = headingKeywords.map(normalizeSearchText).filter(Boolean);
+  if (!title || !headings.length) return [];
+  return KNOWLEDGE_CHUNKS
+    .filter((chunk) => {
+      const titleMatched = normalizeSearchText(chunk.title).includes(title) || chunk.searchText.includes(title);
+      const headingText = normalizeSearchText(`${chunk.heading} ${chunk.content}`);
+      const headingMatched = headings.some((keyword) => headingText.includes(keyword));
+      return titleMatched && headingMatched;
+    })
+    .slice(0, limit)
+    .map((chunk) => ({
+      title: chunk.title,
+      heading: chunk.heading,
+      excerpt: excerptText(chunk.content, 1400),
+      forceIncluded: true,
+      priority: "high_level_meeting_dialogue",
+    }));
+}
+
+function uniqueKnowledgeItems(items, limit = 10) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = `${item.title || item.source || ""}|${item.heading || ""}|${item.excerpt || item.content || ""}`.slice(0, 240);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, limit);
 }
 
 function loadKnowledgeBase() {
@@ -643,17 +688,30 @@ function poccVisitPrep(context, args) {
   });
 
   const primaryContact = Array.isArray(customer.keyContacts) ? customer.keyContacts[0] : null;
+  const currentTask = tasks[0] || null;
+  const shouldCloseToCommercial = /比亚迪|定商务|签约|报价值|报价|合同|审批/.test([
+    customer.name,
+    customer.currentOpportunity,
+    customer.opportunityStage,
+    currentTask?.visitGoal,
+    currentTask?.detailObjective,
+    currentTask?.expectedCommitment,
+  ].filter(Boolean).join(" "));
 
   return {
     found: true,
     customer,
     primaryContact,
-    currentTask: tasks[0] || null,
+    currentTask,
     recentVisits: visits.slice(0, 3),
     matchedCases: cases,
     suggestedGoals: {
-      bestActionCommitment: `推进 ${customer.currentOpportunity} 的下一次方案评审或关键人会面`,
-      minimumActionCommitment: "确认客户最新需求、预算边界和时间表",
+      bestActionCommitment: shouldCloseToCommercial
+        ? "推动客户确认进入“定商务”，明确商务评审口径、报价/合同推进节点和签约路径"
+        : `推进 ${customer.currentOpportunity} 的下一次方案评审或关键人会面`,
+      minimumActionCommitment: shouldCloseToCommercial
+        ? "拿到定商务前必须补齐的TCO/ROI数据、财务口径、审批链和下一次商务沟通时间"
+        : "确认客户最新需求、预算边界和时间表",
     },
     matchedKnowledge: [
       ...knowledge.matchedItems.slice(0, 3),
@@ -1131,6 +1189,11 @@ function shouldUseFastVisitPrep(body) {
   );
 }
 
+function shouldUsePrepCheck(body) {
+  const message = String(body?.message || "");
+  return /会前准备检查|只输出会前准备|准备度|待补齐|建议携带材料/.test(message);
+}
+
 function buildVisitPrepCacheKey(body) {
   const context = body?.context || {};
   const customer = context.selectedCustomer;
@@ -1173,6 +1236,68 @@ function pickFirstLine(value, fallback = "待确认") {
   return text.length > 58 ? `${text.slice(0, 58)}...` : text;
 }
 
+function buildPrepCheckSummary(body, fastPrep) {
+  const context = body?.context || {};
+  const customer = fastPrep?.compactContext?.customer || context.selectedCustomer || {};
+  const task = fastPrep?.compactContext?.currentTask
+    || (Array.isArray(context.filteredTasks)
+      ? context.filteredTasks.find((item) => item.customerId === customer.id)
+      : null);
+  const contacts = Array.isArray(task?.contacts) ? task.contacts : (Array.isArray(customer.keyContacts) ? customer.keyContacts : []);
+  const highLevel = contacts.find((item) => /高层|决策|总|负责人/.test(`${item.name || ""} ${item.title || ""}`));
+  const coach = contacts.find((item) => /采购|设备|经理/.test(`${item.name || ""} ${item.title || ""}`) && item.name !== highLevel?.name);
+  const highLevelText = highLevel ? `${highLevel.name}（${highLevel.title || "高层决策人"}）` : "客户高层/决策人待确认";
+  const coachText = coach ? `${coach.name}（${coach.title || "Coach内线"}）` : "Coach内线待确认";
+  const materials = Array.isArray(task?.prepMaterials) && task.prepMaterials.length
+    ? task.prepMaterials.slice(0, 6)
+    : [
+        "TCO/ROI测算底稿",
+        "注塑取件机器人工作站方案页",
+        "客户案例与竞品/进口设备响应对比",
+        "报价口径、合同节点和审批链问题清单",
+      ];
+
+  return [
+    "## 会前准备检查",
+    "",
+    "| 项目 | 判断 |",
+    "|---|---|",
+    `| 客户 | ${customer.name || "当前客户"} |`,
+    `| 拜访主题 | ${task?.visitPurpose || customer.currentOpportunity || "待确认"} |`,
+    `| 正式汇报对象 | ${highLevelText} |`,
+    `| Coach内线 | ${coachText} |`,
+    `| 本次目标 | ${task?.detailObjective || task?.visitGoal || "确认客户承诺和下一步推进动作"} |`,
+    `| BAC/MAC | ${task?.expectedCommitment || "BAC/MAC待补充"} |`,
+    "",
+    "## 准备度总览",
+    "",
+    "| 检查项 | 状态 | 会前动作 |",
+    "|---|---|---|",
+    `| 正式对象与Coach分工 | ${highLevel && coach ? "已明确" : "待确认"} | 会前请${coach?.name || "Coach"}确认${highLevel?.name || "高层"}参会状态、时间窗口和关注点 |`,
+    `| 商务收口目标 | ${/定商务|报价|合同|审批|签约/.test(task?.expectedCommitment || task?.visitGoal || "") ? "已明确" : "待补齐"} | 现场必须收口到定商务、报价/合同/审批节点或下一次商务会 |`,
+    `| ROI/TCO材料 | ${materials.some((item) => /ROI|TCO|回本|投资/.test(item)) ? "已准备" : "待补齐"} | 准备人工、节拍、良率、停机、维护、回本周期测算口径 |`,
+    `| 案例/竞品防守 | ${materials.some((item) => /案例|竞品|进口/.test(item)) ? "已准备" : "待补齐"} | 准备比亚迪CNC案例、进口设备服务响应和备件周期对比 |`,
+    "| 会议现场节奏 | 待确认 | 会前30分钟确认会议室、投影、座位、参会人和高层状态 |",
+    "",
+    "## 待补齐",
+    "",
+    "- 请刘经理确认赵总是否参会、时间是否完整、是否有财务/制造负责人列席。",
+    "- 请刘经理确认进入定商务前，客户最关心的是报价、合同条款、财务ROI还是技术验证。",
+    "- 准备一页“定商务推进路径”：报价口径、合同节点、审批链、下次商务会时间。",
+    "",
+    "## 建议携带材料",
+    "",
+    ...materials.map((item) => `- ${item}`),
+    "",
+    "## 下一步按钮建议",
+    "",
+    "| 按钮 | 用途 |",
+    "|---|---|",
+    "| 生成现场打法 | 会前准备确认后，生成面向赵总的高层开场、BPIDC问题链、价值表达和BAC/MAC收官 |",
+    "| 编辑卡片 | 如果赵总、刘经理、财务/制造人员信息不准确，先编辑卡片再生成打法 |",
+  ].join("\n");
+}
+
 function buildQuickVisitPrepSummary(body, fastPrep) {
   const context = body?.context || {};
   const customer = fastPrep?.compactContext?.customer || context.selectedCustomer || {};
@@ -1197,54 +1322,97 @@ function buildQuickVisitPrepSummary(body, fastPrep) {
   const stage = `${customer.opportunityStage || "待确认"}${customer.opportunityPercent != null ? ` / ${customer.opportunityPercent}%` : ""}`;
   const bac = task?.expectedCommitment
     || fastPrep?.compactContext?.suggestedGoals?.bestActionCommitment
-    || `推动 ${customer.currentOpportunity || "当前项目"} 进入下一次方案评审或关键人沟通`;
+    || (/比亚迪|定商务|签约|报价值|报价|合同|审批/.test(`${customer.name || ""} ${customer.currentOpportunity || ""} ${customer.opportunityStage || ""}`)
+      ? "推动客户确认进入“定商务”，明确商务评审口径、报价/合同推进节点和签约路径"
+      : `推动 ${customer.currentOpportunity || "当前项目"} 进入下一次方案评审或关键人沟通`);
   const mac = fastPrep?.compactContext?.suggestedGoals?.minimumActionCommitment
-    || "拿到客户最新需求、预算边界、决策链和下一次沟通窗口";
+    || (/比亚迪|定商务|签约|报价值|报价|合同|审批/.test(`${customer.name || ""} ${customer.currentOpportunity || ""} ${customer.opportunityStage || ""}`)
+      ? "拿到定商务前必须补齐的TCO/ROI数据、财务口径、审批链和下一次商务沟通时间"
+      : "拿到客户最新需求、预算边界、决策链和下一次沟通窗口");
   const currentRisk = task?.opportunityRisk
     || (customer.opportunityStage?.includes("报") ? "方案价值和 ROI 需要被客户内部认可，否则容易停在评估环节" : "")
     || (customer.opportunityStage?.includes("定") ? "商务决策窗口已打开，重点是锁定采购流程、价格边界和签批路径" : "")
     || (hasOpportunity ? "需求存在但决策链、预算和时间表还没有完全闭环" : "当前还不能默认有明确商机，先验证真实痛点和立项可能性");
 
-  return [
-    "## 作战总览",
-    "",
-    `| 客户 | ${customer.name || "当前客户"}（${customer.level || "未知"}级 / ${customer.industry || "行业待确认"}） |`,
-    "|---|---|",
-    `| 当前商机 | ${customer.currentOpportunity || task?.opportunityTopic || "待确认"}；阶段：${stage} |`,
-    `| 核心目标 | ${pickFirstLine(task?.visitGoal || body?.message, "确认客户当前需求强度、项目阶段和下一步推进窗口")} |`,
-    `| 关键联系人 | ${contact ? `${contact.name}${contact.title ? `（${contact.title}）` : ""}` : "现场确认业务、技术、采购三类角色"} |`,
-    "",
-    "## 先抓 3 个重点",
-    "",
-    "| 优先级 | 重点 | 你要盯什么 |",
-    "|---|---|---|",
-    `| 1 | 先验证卡点 | 产线痛点、节拍、良率、人力成本 |`,
-    `| 2 | 再要承诺 | BAC：${pickFirstLine(bac)} |`,
-    `| 3 | 重点防风险 | ${pickFirstLine(currentRisk)} |`,
-    "",
-    "## 必问三问",
-    "",
-    "| 问什么 | 目的 |",
-    "|---|---|",
-    "| 这段工艺最影响效率/良率/交付的指标是什么？ | 拿到量化痛点 |",
-    "| 技术评估、预算判断、最终拍板分别是谁？ | 识别决策链 |",
-    "| 补齐方案/ROI/案例后，能否确认评审时间？ | 拿下一步承诺 |",
-    "",
-    `**已先用到**：POCC 拜访准备；${knowledgeTitles.length ? `知识库《${knowledgeTitles.join("》《")}》` : "拓斯达行业知识库匹配中"}。完整打法还在生成，会继续补充开场话术、ROI/竞品切入和收官表达。`,
-    visits[0]?.summary ? `\n> 最近拜访参考：${pickFirstLine(visits[0].summary, "")}` : "",
-  ].filter(Boolean).join("\n");
-}
+	  return [
+	    "## 重点速览",
+	    "",
+	    "| 项目 | 判断 |",
+	    "|---|---|",
+	    `| 客户 | ${customer.name || "当前客户"}（${customer.level || "未知"}级 / ${customer.industry || "行业待确认"}） |`,
+	    `| 阶段 | ${customer.currentOpportunity || task?.opportunityTopic || "待确认"}；${stage} |`,
+	    `| 目标 | ${pickFirstLine(task?.detailObjective || task?.visitGoal || body?.message, "确认客户当前需求强度、项目阶段和下一步推进窗口")} |`,
+	    `| 风险 | ${pickFirstLine(currentRisk)} |`,
+	    "",
+	    "## P（Prepare｜规划与准备）",
+	    "",
+	    "| 准备项 | 先做什么 |",
+	    "|---|---|",
+	    `| Coach内线 | 先请${contact ? contact.name : "关键联系人"}确认高层/商务评审状态、财务口径、报价边界和审批链 |`,
+	    "| 会前资料 | 准备 ROI/TCO、案例、竞品/进口设备服务响应对比和高层会晤材料 |",
+	    "",
+	    "## O（Open｜高层开场）",
+	    "",
+	    "| 场景 | 开场方向 |",
+	    "|---|---|",
+	    "| 开场定调 | 先说明本次不是补参数，而是把进入定商务所需的业务价值、回本逻辑和风险材料准备齐 |",
+	    "",
+	    "## C（Consult｜咨询与共创）",
+	    "",
+	    "| 问什么 | 目的 |",
+	    "|---|---|",
+	    "| 制造、财务、高层分别看哪些指标？ | 识别评审链路 |",
+	    "| ROI/TCO测算需要按哪个口径准备？ | 拿到数据清单 |",
+	    "",
+	    "## C（Close｜承诺闭环）",
+	    "",
+	    `| BAC | ${pickFirstLine(bac)} |`,
+	    `| MAC | ${pickFirstLine(mac)} |`,
+	    "",
+	    `**已先用到**：POCC 四段式；${knowledgeTitles.length ? `知识库《${knowledgeTitles.join("》《")}》` : "拓斯达行业知识库匹配中"}。完整打法会继续补齐第三幕正式会晤话术迁移、BPIDC、N-SABE、LSCPA 和 BAC/MAC。`,
+	    visits[0]?.summary ? `\n> 最近拜访参考：${pickFirstLine(visits[0].summary, "")}` : "",
+	  ].filter(Boolean).join("\n");
+	}
 
 function buildFastVisitPrepMessages(body, builtInstructions) {
   const context = body.context || {};
   const customer = context.selectedCustomer;
+  const isHighLevelVisit = /约|高层|评审/.test(`${customer?.opportunityStage || ""} ${customer?.currentOpportunity || ""} ${body?.message || ""}`);
   const prep = executeLocalTool("skill_pocc_visit_prep", {
     customerId: customer?.id,
     customerName: customer?.name,
   }, context);
   const knowledge = executeLocalTool("skill_knowledge_lookup", {
-    query: `${customer?.industry || ""} ${customer?.currentOpportunity || ""} ${customer?.opportunityStage || ""} ROI 竞品 话术 工艺 产品 价值`,
+    query: [
+      customer?.industry || "",
+      customer?.currentOpportunity || "",
+      customer?.opportunityStage || "",
+      isHighLevelVisit
+        ? "高层拜访 高层会晤 约高层 Coach 内线 角色分工 ROI TCO 政策补贴 国产替代 竞品防守"
+        : "",
+      "ROI 竞品 话术 工艺 产品 价值 POCC BPIDC N-SABE BAC MAC",
+    ].filter(Boolean).join(" "),
   }, context);
+  const highLevelMeetingDialogue = isHighLevelVisit
+    ? getKnowledgeChunksByHeading("高层拜访业务场景", [
+        "第三幕",
+        "正式会晤",
+        "会前最后准备",
+        "破冰",
+        "方案汇报",
+        "价值展示",
+        "技术答疑",
+        "战略共鸣",
+      ], 8)
+    : [];
+  const forcedHighLevelKnowledge = isHighLevelVisit
+    ? getKnowledgeChunksByTitle("高层拜访业务场景", 6)
+    : [];
+  const knowledgeBase = uniqueKnowledgeItems([
+    ...highLevelMeetingDialogue,
+    ...forcedHighLevelKnowledge,
+    ...(Array.isArray(knowledge.matchedKnowledgeBase) ? knowledge.matchedKnowledgeBase : []),
+  ], 14);
 
   const compactContext = {
     customer: prep.customer,
@@ -1253,8 +1421,17 @@ function buildFastVisitPrepMessages(body, builtInstructions) {
     recentVisits: prep.recentVisits,
     matchedCases: prep.matchedCases,
     matchedKnowledge: prep.matchedKnowledge,
-    knowledgeBase: knowledge.matchedKnowledgeBase?.slice(0, 8),
+    knowledgeBase,
+    highLevelMeetingDialogue,
     suggestedGoals: prep.suggestedGoals,
+    appliedMethodology: [
+      "POCC：Prepare-Open-Consult-Close",
+      "BPIDC：背景/痛点/影响/决策/承诺提问链",
+      "N-SABE：需求-方案-收益-证据价值表达",
+      "LSCPA：异议处理",
+      "BAC/MAC：最佳/最低客户承诺",
+      ...(isHighLevelVisit ? ["高层拜访业务场景：Coach内线、高层会晤、角色分工、TCO/ROI、竞品防守、48小时跟进"] : []),
+    ],
   };
 
   return {
@@ -1265,28 +1442,130 @@ function buildFastVisitPrepMessages(body, builtInstructions) {
       {
         role: "user",
         content: [
-          "请基于以下已取好的客户、任务、知识库和 POCC 数据，直接生成销售拜访作战单。",
-          "不要再要求补充信息，不要解释你有哪些功能。",
-          "质量优先，速度次之。不要为了短而牺牲客户洞察、知识库依据和话术可用性。",
-          "输出控制在 2200-3200 字：前两屏要能快速扫读，后半部分必须给足客户洞察、话术和推进细节。",
-          "固定输出结构：## 作战总览；## 先抓 3 个重点；## 马上做什么；## 可复制话术；## 必问三问；## 价值/ROI/竞品切入；## 收官承诺；## 依据。",
-          "核心内容优先用 Markdown 表格呈现，但表格单元格要有完整信息，不能只写标题或口号。",
-          "作战总览必须用 4 行以内 Markdown 表格，包含客户、阶段、目标、风险。",
-          "先抓 3 个重点必须用表格，列：优先级｜重点｜为什么重要｜你要盯什么。每个单元格必须是完整判断。",
-          "马上做什么必须用表格，列：顺序｜动作｜交付物｜现场判断标准。至少 4 行，每个动作要具体到销售可执行。",
-          "可复制话术必须用表格，列：场景｜话术｜目的。至少 6 组话术：开场、生产痛点、ROI、竞品、评审推进、收官。每段话术不少于 45 个中文字符。",
-          "必问三问必须扩展为 6 问，用表格列：问题｜追问｜目的。问题要能问出预算、决策链、技术卡点或ROI数据。",
-          "价值/ROI/竞品切入必须给 3 个角度，每个角度说明客户痛点、拓斯达切入、需要拿到的数据。",
-          "收官承诺必须给 BAC 和 MAC 两档，并写出可直接对客户说的话。",
-          "依据放最后，列 skill、方法论和知识库主题，并用一句话说明这些依据如何支撑本次打法。",
-          "",
-          JSON.stringify(compactContext),
+	          "请基于以下已取好的客户、任务、知识库和 POCC 数据，直接生成销售拜访作战单。",
+	          "不要再要求补充信息，不要解释你有哪些功能。",
+	          customer?.name?.includes("比亚迪") ? "当前客户是深圳比亚迪电子有限公司，本轮必须融合《高层拜访业务场景》知识库，把打法定位为“约高层/高层评审推进”，不能退回普通补参数或普通方案汇报。" : "",
+	          isHighLevelVisit ? "本轮必须重点参考《高层拜访业务场景》第三幕｜正式会晤：销售的最高殿堂。不要只参考总结清单，必须迁移其中的情景故事、对话节奏和应对策略。" : "",
+	          "质量优先，速度次之。不要为了短而牺牲客户洞察、知识库依据和话术可用性。",
+	          "输出控制在 2600-3600 字：第一屏必须可扫读，后半部分必须给足客户洞察、话术和推进细节。",
+	          "必须严格按照 POCC 四段式输出，一级标题必须完整出现且顺序不能变：## 重点速览；## P（Prepare｜规划与准备）；## O（Open｜高层开场）；## C（Consult｜咨询与共创）；## C（Close｜承诺闭环）；## 依据。",
+	          "禁止输出旧模板标题：## 目标、## 30秒开场、## 必问3问、## 核心价值点、## 预判顾虑、## 收官。只要出现这些旧标题就是错误输出。",
+	          "不要把 POCC 只写成标签。P/O/C/C 必须是回答的主结构，每个阶段都要有目标、动作、话术和知识库依据。",
+	          "全篇采用“销售作战卡”风格，尽量使用 Markdown 表格、短句和加粗重点，不要写成连续长段落。",
+	          "重点速览必须用 4 行以内 Markdown 表格，列：项目｜判断。必须包含客户、阶段、目标、风险。",
+	          "P（Prepare）阶段必须包含：客户/商机判断、Coach内线使用、决策链假设、会前资料清单、角色分工、会前30分钟检查。用表格呈现，必须引用《高层拜访业务场景》的会前准备、角色分工、六大知识库。",
+	          "O（Open）阶段必须包含：会前向刘经理确认高层状态和会议条件；正式汇报对象是赵总等客户高层，开场话术必须面向高层，不要把刘经理写成高层汇报对象；宏观趋势破冰、不急于递画册、把注塑取件从设备参数升级到降本增效/国产替代/供应稳定。必须给至少3段可复制开场话术，每段不少于75个中文字符。",
+	          "C（Consult）阶段必须包含：BPIDC 必问6问、正式会晤话术迁移、ROI/TCO算账、竞品/进口设备防守、技术疑虑回应、战略共鸣。必须用表格，列出问题/追问/话术/目的/依据。",
+	          "C（Close）阶段必须包含：BAC/MAC两档承诺、收官话术、48小时内跟进动作、本次不要这样聊。针对深圳比亚迪电子，本次必须把收口动作升级为进入“定商务”、明确报价/合同/审批节点和签约路径；不要再把最终目标停留在约高层评审会。",
+	          "正式会晤话术迁移必须放在 C（Consult）阶段中，用表格列：第三幕原型｜迁移到比亚迪电子怎么说｜为什么这样说。必须覆盖：会前确认会议室和高层状态、从行业趋势切入、不急于递画册、用客户痛点唤醒注意、TCO/ROI算清账、用数据打消技术疑虑、从单机设备提升到智能制造生态、邀请总部/展厅/样板线参观。",
+	          "生成话术时不能简单复述 Y 公司原文，必须把原文逻辑迁移为深圳比亚迪电子、赵总/客户高层、刘经理Coach内线、注塑取件机器人工作站、高层汇报评审的表达。",
+	          "每个 POCC 阶段必须显式标注方法论和知识库依据，例如：方法：POCC-P / BPIDC / N-SABE / LSCPA / BAC-MAC；依据：《高层拜访业务场景》第三幕/角色分工/六大知识库/48小时跟进。",
+	          "依据放最后，列 skill、方法论、知识库主题和本次使用方式；必须点名《高层拜访业务场景》和 topstar-visit-coach POCC skill。",
+	          "",
+	          JSON.stringify(compactContext),
           "",
           `原始销售请求：${body.message}`,
         ].join("\n"),
       },
     ],
-  };
+	  };
+	}
+
+function usesLegacyVisitPrepTemplate(text = "") {
+  return /(^|\n)#{1,6}\s*(🎯\s*)?目标\b|(^|\n)#{1,6}\s*(💬\s*)?(30\s*秒开场|开场（30秒）)|(^|\n)#{1,6}\s*(❓\s*)?必问\s*3\s*问|(^|\n)#{1,6}\s*(💡\s*)?核心价值点|(^|\n)#{1,6}\s*(⚠️\s*)?预判顾虑|(^|\n)#{1,6}\s*(✅\s*)?收官\b/.test(String(text || ""));
+}
+
+function hasRequiredPoccSections(text = "") {
+  const value = String(text || "");
+  return [
+    /^##\s*重点速览\s*$/m,
+    /^##\s*P（Prepare｜规划与准备）\s*$/m,
+    /^##\s*O（Open｜高层开场）\s*$/m,
+    /^##\s*C（Consult｜咨询与共创）\s*$/m,
+    /^##\s*C（Close｜承诺闭环）\s*$/m,
+  ].every((pattern) => pattern.test(value));
+}
+
+function fallbackPoccVisitPrep(body, fastPrep, generatedText = "") {
+  const context = body?.context || {};
+  const customer = fastPrep?.compactContext?.customer || context.selectedCustomer || {};
+  const task = fastPrep?.compactContext?.currentTask
+    || (Array.isArray(context.filteredTasks)
+      ? context.filteredTasks.find((item) => item.customerId === customer.id)
+      : null);
+  const contact = fastPrep?.compactContext?.primaryContact
+    || task?.contacts?.[0]
+    || (Array.isArray(customer.keyContacts) ? customer.keyContacts[0] : null);
+  const knowledgeTitles = Array.from(new Set([
+    ...(Array.isArray(fastPrep?.compactContext?.knowledgeBase) ? fastPrep.compactContext.knowledgeBase : []),
+    ...(Array.isArray(fastPrep?.compactContext?.matchedKnowledge) ? fastPrep.compactContext.matchedKnowledge : []),
+  ].map((item) => item.title || item.source || item.heading).filter(Boolean))).slice(0, 4);
+  const stage = `${customer.opportunityStage || "待确认"}${customer.opportunityPercent != null ? ` / ${customer.opportunityPercent}%` : ""}`;
+  const bac = task?.expectedCommitment || fastPrep?.compactContext?.suggestedGoals?.bestActionCommitment || "推动客户确认进入“定商务”，明确报价、合同、审批和签约路径";
+  const mac = fastPrep?.compactContext?.suggestedGoals?.minimumActionCommitment || "拿到定商务前必须补齐的TCO/ROI数据、财务口径、审批链和下一次商务沟通时间";
+  const goal = task?.detailObjective || task?.visitGoal || "把本次沟通推进到明确客户承诺和下一步动作";
+  const risk = task?.opportunityRisk || "如果继续停留在采购/技术层，容易进入参数补充和单机比价。";
+  const highLevelContact = Array.isArray(task?.contacts)
+    ? task.contacts.find((item) => /高层|决策|总|负责人/.test(`${item.name || ""} ${item.title || ""}`))
+    : null;
+  const coachContact = Array.isArray(task?.contacts)
+    ? task.contacts.find((item) => /采购|设备/.test(`${item.name || ""} ${item.title || ""}`))
+    : null;
+  const highLevelName = highLevelContact?.name || "赵总";
+  const coachName = coachContact?.name || contact?.name || "刘经理";
+
+  return [
+    "## 重点速览",
+    "",
+    "| 项目 | 判断 |",
+    "|---|---|",
+    `| 客户 | ${customer.name || "深圳比亚迪电子有限公司"}（${customer.level || "A"}类客户） |`,
+    `| 阶段 | ${customer.currentOpportunity || task?.opportunityTopic || "注塑取件机器人工作站"}；${stage} |`,
+    `| 目标 | ${goal} |`,
+    `| 风险 | ${risk} |`,
+    "",
+    "## P（Prepare｜规划与准备）",
+    "",
+    "| 准备项 | 销售动作 | 依据 |",
+    "|---|---|---|",
+    `| Coach内线 | 会前先请${coachName}确认${highLevelName}的参会状态、会议条件、制造/财务口径和会前材料提交节点。 | POCC-P + 《高层拜访业务场景》会前最后准备 |`,
+    "| 决策链 | 把采购、制造/生产、财务投资评审、高层决策四类角色拆开，不再只围绕采购补参数。 | 高层拜访角色分工 |",
+    "| 会前材料 | 准备15页以内材料：现状痛点、ROI/TCO、案例、国产替代、竞品防守、推进路径。 | 六大知识库 + 第三幕正式会晤 |",
+    "",
+    "## O（Open｜高层开场）",
+    "",
+    "| 场景 | 可复制话术 | 目的 |",
+    "|---|---|---|",
+    `| 会前向${coachName}定调 | ${coachName}，今天正式汇报对象是${highLevelName}等客户高层，我不想把沟通停在补技术参数上。这个项目如果要往前走，高层真正会看的不是单台设备价格，而是注塑取件能不能稳定降人、提节拍、控良率，并把国产替代、供应稳定和投资回收讲清楚。 | 不急于递画册，从设备话题升级到经营议题 |`,
+    `| 面向${highLevelName}开场 | ${highLevelName}，今天我们不先展开产品画册，而是围绕注塑取件机器人工作站是否值得进入定商务做一次评审：一看国产替代和供应稳定，二看三年TCO/ROI和回本周期，三看导入风险和服务响应。 | 正式汇报对象是客户高层 |`,
+    "| 宏观破冰 | 现在制造业自动化评审越来越看总成本和导入风险，我们建议先把制造端、财务端和高层会关心的问题一次准备齐。 | 迁移第三幕“从行业趋势切入”的开场逻辑 |",
+    "",
+    "## C（Consult｜咨询与共创）",
+    "",
+    "| 问题 | 追问/话术 | 目的 | 依据 |",
+    "|---|---|---|---|",
+    "| 高层评审链路 | 如果这个注塑取件项目进入高层评审，制造、财务、高层分别是谁参与？他们分别看节拍、人力、回收期还是导入风险？ | 识别决策链 | BPIDC |",
+    "| ROI/TCO口径 | 财务侧更看人工替代、稼动率、维护成本、停机损失，还是政策补贴？我们按哪个口径做测算表？ | 拿数据清单 | N-SABE + 第三幕TCO算账 |",
+    "| 技术疑虑 | 如果现场担心稳定性和导入风险，我们是否可以把节拍、夹具接口、验收指标和售后响应写入会前材料？ | 用数据打消疑虑 | 第三幕技术答疑 |",
+    "| 正式会晤迁移 | 第三幕里张总先谈趋势、李华再讲痛点、财务问TCO、技术回应疑虑。比亚迪这边应迁移为：先谈注塑自动化趋势，再讲取件痛点，再用ROI/TCO和案例支撑。 | 把故事转成现场打法 | 《高层拜访业务场景》第三幕 |",
+    "",
+    "## C（Close｜承诺闭环）",
+    "",
+    "| 承诺 | 话术 |",
+    "|---|---|",
+    `| BAC | ${highLevelName}，如果今天您对国产替代、TCO/ROI和服务保障口径认可，我们建议把项目推进到“定商务”。下一步直接对齐报价口径、合同条款、审批节点和签约路径。${bac} |`,
+    `| MAC | 如果今天还不能直接定商务，也请${coachName}协助明确进入定商务前还缺哪些TCO/ROI数据、财务口径、审批链信息，以及下一次商务沟通时间。${mac} |`,
+    "| 48小时跟进 | 会后24小时内发会议纪要和材料清单，48小时内同步Coach反馈并修订高层评审材料。 |",
+    "| 本次不要这样聊 | 不只补参数；不陷入单机比价；不只和采购聊；不带BAC/MAC就结束。 |",
+    "",
+    "## 依据",
+    "",
+    `| 类型 | 本次使用方式 |`,
+    "|---|---|",
+    "| skill | topstar-visit-coach POCC skill：用于 P/O/C/C 拜访结构、BPIDC、N-SABE、LSCPA、BAC/MAC。 |",
+    `| 知识库 | ${knowledgeTitles.length ? knowledgeTitles.join("、") : "《高层拜访业务场景》"}：用于高层正式会晤、角色分工、TCO/ROI、竞品防守和48小时跟进。 |`,
+    generatedText ? "<!-- 原模型输出因命中旧模板，已按 POCC 四段式强制重排。 -->" : "",
+  ].filter(Boolean).join("\n");
 }
 
 function inferWordArgs(body) {
@@ -1389,10 +1668,10 @@ function instructionsForContext(context) {
     "话术类输出优先给可复制表达，并按 PBC 开场、BPIDC 提问、N-SABE 价值呈现、LSCPA 异议处理、BAC/MAC 收官承诺组织。",
     "引用知识库内容时要说明来自哪类知识底座或文档主题，不要编造未在客户数据或知识库中出现的案例数字。",
     "如果存在当前客户历史沉淀，必须显式参考这些备注，并避免给出与客户已知偏好、痛点或风险相冲突的建议。",
-    "所有业务回答都必须先输出“作战总览”或“重点速览”，把结论、风险和下一步动作放在最前面。不要一上来写长篇方法论。",
-    "拜访准备类回答固定使用：1）作战总览；2）先抓 3 个重点；3）马上做什么；4）可复制话术；5）必问三问；6）价值/ROI/竞品切入；7）收官承诺；8）依据。",
-    "拜访准备类回答中，作战总览、先抓 3 个重点、马上做什么、可复制话术、必问三问必须优先用 Markdown 表格，不要用长段落堆叠。",
-    "作战总览必须用短表格。马上做什么只给 3 个动作。可复制话术必须能直接对客户说。",
+    "所有业务回答都必须先输出“重点速览”，把结论、风险和下一步动作放在最前面。不要一上来写长篇方法论。",
+    "拜访准备类回答必须严格使用 POCC 四段式：1）重点速览；2）P（Prepare｜规划与准备）；3）O（Open｜高层开场）；4）C（Consult｜咨询与共创）；5）C（Close｜承诺闭环）；6）依据。",
+    "拜访准备类回答中，P/O/C/C 必须是一级标题，不要只把 POCC 写成标签。每个阶段都要有目标、动作、话术和知识库依据。",
+    "重点速览、P准备清单、O开场话术、C咨询问题、C收官承诺必须优先用 Markdown 表格，不要用长段落堆叠。",
     "普通问答默认控制在 600 字以内；拜访准备/客户打法类回答控制在 2200-3200 字，优先保证客户洞察、知识库融合和话术可用性。",
     "每段尽量短，但不能牺牲信息量；单条 bullet 控制在 60 个中文字符以内。用表格组织复杂信息，不要把内容压缩成标题。",
     "回答中必须明确标注：使用了哪个 skill、哪类知识库、哪套方法论；但这部分放在末尾，不要压过行动建议。",
@@ -1580,10 +1859,12 @@ async function createOpenAIChatCompletionsStream(requestBody, runtime, onDelta) 
     const choice = Array.isArray(chunk.choices) ? chunk.choices[0] : null;
     const delta = choice?.delta || {};
 
-    if (typeof delta.content === "string" && delta.content) {
-      content += delta.content;
-      onDelta(delta.content);
-    }
+	    if (typeof delta.content === "string" && delta.content) {
+	      content += delta.content;
+	      if (typeof onDelta === "function") {
+	        onDelta(delta.content);
+	      }
+	    }
 
     if (Array.isArray(delta.tool_calls)) {
       for (const partial of delta.tool_calls) {
@@ -2083,6 +2364,7 @@ async function runAgentStream(body, runtime, res) {
     const fastPrep = shouldUseFastVisitPrep(body)
       ? buildFastVisitPrepMessages(body, builtInstructions)
       : null;
+    const prepCheck = fastPrep && shouldUsePrepCheck(body);
     const fastPrepCacheKey = fastPrep ? buildVisitPrepCacheKey(body) : null;
     const cachedAnswer = fastPrepCacheKey ? findCachedAnswer(body, fastPrepCacheKey) : null;
     const baseMessages = fastPrep?.messages || [
@@ -2106,6 +2388,15 @@ async function runAgentStream(body, runtime, res) {
       for (const name of fastPrep.toolNames) {
         sendEvent(res, "tool", { name, result: { source: "local_prefetch" } });
       }
+      if (prepCheck) {
+        sendEvent(res, "thinking", { text: "生成会前准备检查清单..." });
+        sendEvent(res, "done", {
+          text: buildPrepCheckSummary(body, fastPrep),
+          cacheMeta: { cacheKey: fastPrepCacheKey, hit: false },
+        });
+        res.end();
+        return;
+      }
       sendEvent(res, "thinking", { text: "匹配行业知识库、ROI/竞品/工艺话术..." });
       sendEvent(res, "thinking", { text: "套用 POCC，组织 BAC/MAC 和必问三问..." });
       sendEvent(res, "interim", {
@@ -2114,9 +2405,9 @@ async function runAgentStream(body, runtime, res) {
       });
       sendEvent(res, "thinking", { text: "正在整合成可直接使用的拜访作战单..." });
     }
-    let response = await createOpenAIChatCompletionsStream({
-      model: runtime.model,
-      messages: baseMessages,
+	    let response = await createOpenAIChatCompletionsStream({
+	      model: runtime.model,
+	      messages: baseMessages,
       tools: fastPrep ? undefined : TOOL_DEFINITIONS.map(tool => ({
         type: "function",
         function: {
@@ -2127,13 +2418,16 @@ async function runAgentStream(body, runtime, res) {
       })),
       tool_choice: fastPrep ? undefined : "auto",
       temperature: 0.3,
-      max_tokens: fastPrep ? OPENAI_MAX_TOKENS : undefined,
-    }, runtime, (delta) => sendEvent(res, "delta", { text: delta }));
+	      max_tokens: fastPrep ? OPENAI_MAX_TOKENS : undefined,
+	    }, runtime, fastPrep ? undefined : (delta) => sendEvent(res, "delta", { text: delta }));
 
-    if (fastPrep) {
-      const finalText = extractChatCompletionsText(response) || "处理完成";
-      sendEvent(res, "done", {
-        text: finalText,
+	    if (fastPrep) {
+	      const rawFinalText = extractChatCompletionsText(response) || "处理完成";
+	      const finalText = usesLegacyVisitPrepTemplate(rawFinalText) || !hasRequiredPoccSections(rawFinalText)
+	        ? fallbackPoccVisitPrep(body, fastPrep, rawFinalText)
+	        : rawFinalText;
+	      sendEvent(res, "done", {
+	        text: finalText,
         cacheMeta: { cacheKey: fastPrepCacheKey, hit: false },
       });
       res.end();

@@ -8,6 +8,8 @@ const companyNameMap: Record<string, string> = {
   '立讯精密': '立讯精密工业股份有限公司',
   '格力电器': '珠海格力电器股份有限公司',
   // A级
+  '深圳比亚迪电子有限公司': '深圳比亚迪电子有限公司',
+  '深圳比亚迪电子': '深圳比亚迪电子有限公司',
   '比亚迪电子': '深圳比亚迪电子有限公司',
   '比亚迪': '深圳比亚迪电子有限公司',
   '长盈精密': '长盈精密技术股份有限公司',
@@ -43,14 +45,26 @@ function escapeRegExp(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+const companyEntries = Object.entries(companyNameMap).sort((a, b) => b[0].length - a[0].length);
+const companyNamePattern = new RegExp(companyEntries.map(([name]) => escapeRegExp(name)).join('|'), 'g');
+const canonicalCompanyNames = Array.from(new Set(Object.values(companyNameMap))).sort((a, b) => b.length - a.length);
+
+function repairKnownCompanyNameArtifacts(text: string) {
+  return text.replace(/(?:深圳){2,}比亚迪(?:电子有限公司)+(?:有限公司)*/g, '深圳比亚迪电子有限公司');
+}
+
+function collapseRepeatedCanonicalNames(text: string) {
+  return canonicalCompanyNames.reduce((result, fullName) => {
+    return result.replace(new RegExp(`(?:${escapeRegExp(fullName)}){2,}`, 'g'), fullName);
+  }, text);
+}
+
 export function getFullCompanyName(name: string) {
   return companyNameMap[name] || name;
 }
 
 export function normalizeCompanyNames(text: string) {
-  return Object.keys(companyNameMap)
-    .sort((a, b) => b.length - a.length)
-    .reduce((result, key) => {
-      return result.replace(new RegExp(escapeRegExp(key), 'g'), companyNameMap[key]);
-    }, text);
+  const repaired = repairKnownCompanyNameArtifacts(text);
+  const normalized = repaired.replace(companyNamePattern, match => companyNameMap[match] || match);
+  return collapseRepeatedCanonicalNames(repairKnownCompanyNameArtifacts(normalized));
 }

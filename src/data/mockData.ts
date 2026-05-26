@@ -42,6 +42,24 @@ export interface VisitTask {
   healthScore?: number;
   healthTrend?: 'up' | 'flat' | 'down';
   visitFocus?: string;
+  detailSummary?: string;
+  detailObjective?: string;
+  decisionChain?: {
+    role: string;
+    person: string;
+    status: string;
+    action: string;
+  }[];
+  keyIssues?: {
+    issue: string;
+    salesAngle: string;
+  }[];
+  prepMaterials?: string[];
+  meetingFlow?: {
+    step: string;
+    action: string;
+    desiredSignal: string;
+  }[];
 }
 
 export interface CompletedVisit {
@@ -168,19 +186,22 @@ export const customers: Customer[] = [
   // === A级 · 重点客户（6家）===
   {
     id: 'c4',
-    name: '比亚迪电子',
+    name: '深圳比亚迪电子有限公司',
     level: 'A',
     industry: '消费电子',
     address: '深圳市坪山区比亚迪工业园',
     region: '深圳坪山',
     keyContacts: [
+      { name: '赵总', title: '制造体系高层决策人', phone: '待确认' },
       { name: '刘经理', title: '设备采购经理', phone: '135****4001' },
+      { name: '待引荐', title: '制造/生产负责人', phone: '待确认' },
+      { name: '待引荐', title: '财务/投资评审参与人', phone: '待确认' },
     ],
-    currentOpportunity: '注塑取件',
+    currentOpportunity: '注塑取件机器人工作站高层评审推进',
     opportunityAmount: 55,
-    opportunityStage: '“获”商机',
-    opportunityPercent: 30,
-    opportunityDescription: '客户已确认需补齐技术参数，下一步是形成完整参数清单并进入正式方案评审',
+    opportunityStage: '“约”高层',
+    opportunityPercent: 45,
+    opportunityDescription: '已通过设备采购经理确认注塑取件需求，本次要借刘经理入口推动制造/生产/财务/高层参与正式评审，并准备ROI/TCO、国产替代和高层会晤材料',
   },
   {
     id: 'c5',
@@ -788,25 +809,59 @@ export const visitTasks: VisitTask[] = [
   {
     id: 't8',
     customerId: 'c4',
-    customerName: '比亚迪电子',
+    customerName: '深圳比亚迪电子有限公司',
     customerLevel: 'A',
     confirmationStatus: 'confirmed',
-    visitType: '方案汇报',
-    visitPurpose: '注塑取件机器人方案沟通',
+    visitType: '高层拜访',
+    visitPurpose: '推动注塑取件机器人工作站高层评审',
     visitTime: '14:00',
     location: '深圳市坪山区比亚迪工业园',
     status: 'pending',
-    contacts: [{ name: '刘经理', title: '设备采购经理', phone: '135****4001' }],
+    contacts: [
+      { name: '赵总', title: '制造体系高层决策人', phone: '待确认' },
+      { name: '刘经理', title: '设备采购经理', phone: '135****4001' },
+      { name: '待引荐', title: '制造/生产负责人', phone: '待确认' },
+      { name: '待引荐', title: '财务/投资评审参与人', phone: '待确认' },
+    ],
     lastVisitDate: '2026-05-09',
-    lastVisitSummary: '需补充技术参数',
+    lastVisitSummary: '注塑取件方案初步沟通，客户要求补充技术参数，采购侧认可继续评估',
     dayLabel: '周五',
-    visitGoal: 'A级客户上次拜访确认需补齐技术参数，距上次拜访仅6天，趁客户记忆清晰快速闭环。',
-    expectedCommitment: '拿到完整参数清单并约定下次正式方案评审。',
+    visitGoal: '本次拜访要让高层把拓斯达国产装备方案视为可支撑国产替代、降本增效和智能制造升级的战略选择；现场用TCO/ROI、回本周期、服务响应和政策补贴降低投资顾虑，并推动项目从“报价值”进入“定商务”。',
+    expectedCommitment: 'BAC：推动客户确认进入“定商务”，明确商务评审口径、报价/合同推进节点和签约路径；MAC：拿到定商务前必须补齐的TCO/ROI数据、财务口径、审批链和下一次商务沟通时间。',
     opportunityIntent: 'with_opportunity',
-    opportunityTopic: '注塑取件机器人工作站',
-    opportunityRisk: '关键技术参数未补齐，客户内部评审可能延后',
-    healthScore: 72,
-    healthTrend: 'flat',
+    opportunityTopic: '注塑取件机器人工作站高层评审推进',
+    opportunityRisk: '若只停留在采购/技术层，方案容易变成补参数和比价；必须把国产替代、ROI/TCO、稳定性和政策补贴转成高层决策议题。',
+    visitFocus: '借刘经理这个采购入口约到制造/生产负责人和财务参与人，准备15页以内高层会晤材料、ROI/TCO测算、深圳比亚迪电子CNC上下料案例、注塑取件价值和竞品/进口设备服务响应对比。',
+    detailSummary: '这张卡片的核心不是“补技术参数”，而是借刘经理这个采购入口，把注塑取件机器人工作站从采购/技术沟通推进到制造、财务和高层共同评审。',
+    detailObjective: '让客户高层认可拓斯达方案的战略价值与综合收益，会后明确进入“定商务”的下一步动作，并保持项目持续推进至签约。',
+    decisionChain: [
+      { role: 'Coach/内线', person: '刘经理 · 设备采购经理', status: '已建立沟通入口，认可继续评估', action: '请刘经理判断谁会影响高层会，并协助转介绍制造/生产负责人。' },
+      { role: '生产/制造', person: '待引荐 · 制造/生产负责人', status: '需要补齐真实产线痛点和节拍数据', action: '围绕人力、节拍、良率、换型、设备稳定性确认高层最关心的业务指标。' },
+      { role: '财务/投资评审', person: '待引荐 · 财务/投资评审参与人', status: 'ROI/TCO口径未确认', action: '确认投资回收周期、人工替代成本、维护成本和政策补贴是否进入评审表。' },
+      { role: '高层决策', person: '赵总 · 制造体系高层决策人', status: '本次正式汇报评审对象，需要形成战略认可并进入商务判断', action: '用同行案例、国产替代、交付稳定性和投资回报推动赵总同意进入“定商务”。' },
+    ],
+    keyIssues: [
+      { issue: '高层为什么现在要看', salesAngle: '从“设备采购”升级为“降本增效+国产替代+供应稳定”的经营议题，强调注塑段取件自动化对产能、用工和质量一致性的影响。' },
+      { issue: '客户会担心什么', salesAngle: '提前准备节拍、稼动率、故障响应、换型适配、导入周期和售后保障，避免高层只听到概念而看不到可落地性。' },
+      { issue: '如何防止变成比价', salesAngle: '用TCO、ROI、服务响应、案例复用和政策补贴把比较维度从单机价格拉到全生命周期价值。' },
+      { issue: '本次要拿什么承诺', salesAngle: '优先拿BAC：客户确认进入“定商务”，明确报价、合同、审批和签约路径；退一步拿MAC：定商务前必须补齐的TCO/ROI数据、财务口径和下一次商务沟通时间。' },
+    ],
+    prepMaterials: [
+      '15页以内高层会晤材料：客户现状、痛点、业务价值、投资回报和推进路径。',
+      'ROI/TCO测算底稿：人工替代、节拍提升、良率稳定、维护成本、回收周期。',
+      '深圳比亚迪电子CNC上下料案例：人员40→8人，利用率65%→92%，换型2h→30min。',
+      '注塑取件机器人工作站方案页：节拍、夹具、接口、稳定性、验收指标。',
+      '竞品/进口设备对比：价格不是重点，突出交付周期、服务响应、备件保障和本地化支持。',
+      '政策补贴线索：国产替代、智能制造改造、自动化升级相关政策可作为投资评审加分项。',
+    ],
+    meetingFlow: [
+      { step: '开场定调', action: '先说明本次不是追加参数，而是希望帮刘经理把高层和商务评审需要的价值、回本和风险材料准备齐。', desiredSignal: '刘经理认可“可以按定商务前置材料来推进”。' },
+      { step: '识别高层关注', action: '问清制造、财务和高层各自最关注的指标：产能、人力、回收期、交付风险、国产替代。', desiredSignal: '客户说出高层会看哪些指标、谁参与评审。' },
+      { step: '共创评审材料', action: '把ROI/TCO、案例、竞品防守和政策补贴拆成会前材料清单，请刘经理帮忙校准口径。', desiredSignal: '客户愿意提供数据或确认材料结构。' },
+      { step: '收口承诺', action: '直接请求刘经理协助推动项目进入“定商务”，并确认报价口径、合同/审批节点和下一次商务沟通时间。', desiredSignal: '拿到定商务承诺，或至少拿到TCO/ROI补充清单、财务口径和商务推进节点。' },
+    ],
+    healthScore: 76,
+    healthTrend: 'up',
   },
   {
     id: 't9',

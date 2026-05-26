@@ -307,11 +307,7 @@ function buildAgentContext(state: AppState) {
           .filter(note => note.customerId === state.selectedCustomerId)
           .slice(0, 8)
       : [],
-    customerAnswerCache: state.selectedCustomerId
-      ? state.customerAnswerCache
-          .filter(item => item.customerId === state.selectedCustomerId)
-          .slice(0, 6)
-      : [],
+    customerAnswerCache: [],
     savedAnswerCount: state.savedAnswers.length,
     answerFeedbackSummary: {
       useful: Object.values(state.answerFeedback).filter(item => item.value === 'up').length,
@@ -1328,11 +1324,11 @@ export const useAppStore = create<AppState>((set, get) => {
 
       let userMessage = '';
       let displayMessage = '';
-      if (contextType === 'task') {
-        displayMessage = `帮我准备${normalizeCompanyNames(customer.name)}的拜访打法`;
+      if (contextType === 'prep') {
+        displayMessage = `${normalizeCompanyNames(customer.name)}会前准备`;
         userMessage = [
-          `我准备拜访${normalizeCompanyNames(customer.name)}。请结合客户等级、当前商机、商机阶段、历史拜访和拓斯达知识库，给我一份明天能直接使用的拜访打法。`,
-          task ? `这次拜访卡片已更新，请严格按以下最新信息生成，不要沿用旧话术：` : '',
+          `我准备拜访${normalizeCompanyNames(customer.name)}，请先不要生成完整拜访打法，只输出会前准备检查。`,
+          task ? `这次拜访卡片已更新，请严格按以下最新信息检查，不要沿用旧话术：` : '',
           task ? `- 拜访类型：${task.visitType}` : '',
           task ? `- 拜访时间：${task.dayLabel} ${task.visitTime || '待定'}` : '',
           task ? `- 拜访地点：${task.location || '待定'}` : '',
@@ -1342,9 +1338,38 @@ export const useAppStore = create<AppState>((set, get) => {
           task ? `- 商机主题：${task.opportunityTopic || customer.currentOpportunity || '待明确'}` : '',
           task ? `- 商机风险：${task.opportunityRisk || '待补充'}` : '',
           task ? `- 拜访重点：${task.visitFocus || '待补充'}` : '',
+          task?.detailSummary ? `- 详情页一句话判断：${task.detailSummary}` : '',
+          task?.detailObjective ? `- 详情页必须拿到：${task.detailObjective}` : '',
+          task?.decisionChain?.length ? `- 详情页决策链：${task.decisionChain.map(item => `${item.role}/${item.person}/${item.status}/动作：${item.action}`).join('；')}` : '',
+          task?.keyIssues?.length ? `- 详情页高层关注议题：${task.keyIssues.map(item => `${item.issue}：${item.salesAngle}`).join('；')}` : '',
+          task?.prepMaterials?.length ? `- 详情页会前资料清单：${task.prepMaterials.join('；')}` : '',
+          task?.meetingFlow?.length ? `- 详情页现场推进节奏：${task.meetingFlow.map(item => `${item.step}：${item.action}，目标信号：${item.desiredSignal}`).join('；')}` : '',
           task?.contacts?.length ? `- 本次联系人：${task.contacts.map(contact => `${contact.name}（${contact.title}）`).join('、')}` : '',
-          '输出要求：先判断这次拜访的核心目标，再给开场话术、必问问题、价值/ROI/竞品切入点、BAC/MAC收官承诺；话术必须体现上面最新编辑的信息。',
+          '输出要求：只输出会前准备检查，按“准备度总览、已具备、待补齐、会前必须确认、建议携带材料、下一步按钮建议”组织；明确区分正式汇报对象和Coach内线；不要输出完整拜访打法。',
         ].filter(Boolean).join('\n');
+      } else if (contextType === 'task') {
+        displayMessage = `帮我准备${normalizeCompanyNames(customer.name)}的拜访打法`;
+        userMessage = [
+          `我准备拜访${normalizeCompanyNames(customer.name)}。请结合客户等级、当前商机、商机阶段、历史拜访和拓斯达知识库，给我一份明天能直接使用的拜访打法。`,
+          task ? `这次拜访卡片已更新，请严格按以下最新信息生成，不要沿用旧话术：` : '',
+          task ? `- 拜访类型：${task.visitType}` : '',
+          task ? `- 拜访时间：${task.dayLabel} ${task.visitTime || '待定'}` : '',
+          task ? `- 拜访地点：${task.location || '待定'}` : '',
+          task ? `- 拜访主题：${task.visitPurpose}` : '',
+          task ? `- 本次拜访目标：${task.visitGoal}` : '',
+	          task ? `- 期望客户承诺：${task.expectedCommitment || '待明确'}` : '',
+	          task ? `- 商机主题：${task.opportunityTopic || customer.currentOpportunity || '待明确'}` : '',
+	          task ? `- 商机风险：${task.opportunityRisk || '待补充'}` : '',
+	          task ? `- 拜访重点：${task.visitFocus || '待补充'}` : '',
+	          task?.detailSummary ? `- 详情页一句话判断：${task.detailSummary}` : '',
+	          task?.detailObjective ? `- 详情页必须拿到：${task.detailObjective}` : '',
+	          task?.decisionChain?.length ? `- 详情页决策链：${task.decisionChain.map(item => `${item.role}/${item.person}/${item.status}/动作：${item.action}`).join('；')}` : '',
+	          task?.keyIssues?.length ? `- 详情页高层关注议题：${task.keyIssues.map(item => `${item.issue}：${item.salesAngle}`).join('；')}` : '',
+	          task?.prepMaterials?.length ? `- 详情页会前资料清单：${task.prepMaterials.join('；')}` : '',
+	          task?.meetingFlow?.length ? `- 详情页现场推进节奏：${task.meetingFlow.map(item => `${item.step}：${item.action}，目标信号：${item.desiredSignal}`).join('；')}` : '',
+	          task?.contacts?.length ? `- 本次联系人：${task.contacts.map(contact => `${contact.name}（${contact.title}）`).join('、')}` : '',
+	          '输出要求：先判断这次拜访的核心目标，再给开场话术、必问问题、价值/ROI/竞品切入点、BAC/MAC收官承诺；话术必须体现上面最新编辑的信息。',
+	        ].filter(Boolean).join('\n');
       } else if (contextType === 'completed') {
         displayMessage = `复盘${normalizeCompanyNames(customer.name)}的拜访情况`;
         userMessage = `复盘${normalizeCompanyNames(customer.name)}的拜访情况。请结合历史拜访和知识库，判断下一步怎么推进商机，并给出跟进话术。`;
@@ -1621,23 +1646,9 @@ export const useAppStore = create<AppState>((set, get) => {
       set({ customerMemory: nextMemory });
     },
 
-    cacheCustomerAnswer: (cacheKey, content) => {
-      const state = get();
-      const customer = state.selectedCustomer;
-      if (!customer || !cacheKey || !content.trim()) return;
-      const nextCache = [
-        {
-          cacheKey,
-          customerId: customer.id,
-          customerName: customer.name,
-          content,
-          createdAt: new Date().toISOString(),
-        },
-        ...state.customerAnswerCache.filter(item => item.cacheKey !== cacheKey),
-      ];
-      saveCustomerAnswerCache(nextCache);
-      set({ customerAnswerCache: nextCache });
-    },
+	    cacheCustomerAnswer: (cacheKey, content) => {
+	      if (!cacheKey || !content.trim()) return;
+	    },
 
     setThinkingMessage: (msg) => {
       set({ thinkingMessage: msg });

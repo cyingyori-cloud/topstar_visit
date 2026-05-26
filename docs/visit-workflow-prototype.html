@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>拜访作战流程原型</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --ink: #172033;
+      --muted: #667085;
+      --line: #e5e9f0;
+      --green: #16a34a;
+      --green-soft: #ecfdf3;
+      --orange: #f97316;
+      --orange-soft: #fff4ed;
+      --blue: #2563eb;
+      --blue-soft: #eff6ff;
+      --red: #dc2626;
+      --shadow: 0 14px 34px rgba(22, 32, 51, .08);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      letter-spacing: 0;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 320px minmax(520px, 1fr) 380px;
+      gap: 16px;
+      padding: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .panel-head {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: 22px; line-height: 1.25; }
+    h2 { font-size: 18px; }
+    h3 { font-size: 15px; }
+
+    .sub {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .task-list { padding: 14px; display: grid; gap: 12px; }
+    .task-card {
+      border: 1px solid #ffd6c2;
+      background: linear-gradient(180deg, #fffaf7, #fff);
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .task-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      height: 24px;
+      padding: 0 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .badge.orange { color: #c2410c; background: #ffedd5; }
+    .badge.green { color: #15803d; background: #dcfce7; }
+    .badge.blue { color: #1d4ed8; background: #dbeafe; }
+    .badge.gray { color: #475467; background: #f2f4f7; }
+
+    .customer-title { font-size: 18px; font-weight: 800; line-height: 1.25; }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+
+    .metric {
+      border: 1px solid #bbf7d0;
+      background: var(--green-soft);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin: 10px 0;
+    }
+
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+      color: #166534;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .bar { height: 8px; background: #d9fbe7; border-radius: 99px; overflow: hidden; }
+    .bar > span { display: block; height: 100%; width: 76%; background: var(--green); border-radius: inherit; }
+
+    .task-section {
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+      margin-top: 12px;
+    }
+
+    .label { color: var(--muted); font-size: 12px; margin-bottom: 5px; }
+    .value { font-size: 14px; line-height: 1.55; font-weight: 650; }
+
+    .mini-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .mini {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      background: #fbfcfe;
+    }
+
+    .actions { display: grid; gap: 8px; margin-top: 14px; }
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 11px 12px;
+      font-weight: 800;
+      font-size: 14px;
+      cursor: pointer;
+      color: var(--ink);
+      background: #f2f4f7;
+    }
+    button.primary { background: #111827; color: #fff; }
+    button:hover { filter: brightness(.98); }
+
+    .content { display: flex; flex-direction: column; min-height: calc(100vh - 32px); }
+    .stepper {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      padding: 14px;
+      background: #fbfcfe;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .step {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 10px;
+      padding: 12px;
+      text-align: left;
+      min-height: 82px;
+    }
+    .step.active {
+      border-color: #86efac;
+      background: var(--green-soft);
+      box-shadow: 0 0 0 3px rgba(22, 163, 74, .08);
+    }
+    .step .num {
+      width: 24px; height: 24px; border-radius: 99px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: #eef2f7; color: #475467;
+      font-size: 12px; font-weight: 900;
+      margin-bottom: 8px;
+    }
+    .step.active .num { background: var(--green); color: #fff; }
+    .step strong { display: block; font-size: 14px; }
+    .step span { display: block; color: var(--muted); font-size: 12px; line-height: 1.35; margin-top: 4px; }
+
+    .workspace {
+      padding: 18px;
+      overflow: auto;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 14px 0;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 10px;
+      padding: 14px;
+    }
+
+    .card.tint-orange { border-color: #fed7aa; background: var(--orange-soft); }
+    .card.tint-green { border-color: #bbf7d0; background: var(--green-soft); }
+    .card.tint-blue { border-color: #bfdbfe; background: var(--blue-soft); }
+
+    .card h3 { margin-bottom: 8px; }
+    .card p, li { color: #344054; line-height: 1.55; font-size: 14px; }
+    ul { margin: 8px 0 0 0; padding-left: 18px; }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      overflow: hidden;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+    }
+    .table th, .table td {
+      border-bottom: 1px solid var(--line);
+      padding: 11px 12px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .table th { background: #f8fafc; color: #475467; font-size: 12px; }
+    .table tr:last-child td { border-bottom: 0; }
+
+    .checklist { display: grid; gap: 10px; margin-top: 14px; }
+    .check {
+      display: grid;
+      grid-template-columns: 24px 1fr auto;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 11px 12px;
+      background: #fff;
+    }
+    .tick {
+      width: 22px; height: 22px; border-radius: 99px;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: #fff; background: var(--green);
+      font-size: 13px; font-weight: 900;
+    }
+    .tick.missing { background: #e5e7eb; color: #98a2b3; }
+    .check strong { display: block; font-size: 14px; }
+    .check span { color: var(--muted); font-size: 12px; }
+
+    .talk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+    .talk-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      padding: 14px;
+      min-height: 150px;
+    }
+    .talk-card h3 { display: flex; justify-content: space-between; align-items: center; }
+    .copy {
+      font-size: 12px;
+      padding: 5px 8px;
+      background: #f2f4f7;
+      border-radius: 7px;
+      color: #475467;
+    }
+
+    .agent {
+      display: flex;
+      flex-direction: column;
+      min-height: calc(100vh - 32px);
+    }
+    .agent-body { padding: 16px; overflow: auto; }
+    .agent-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      background: #fff;
+      margin-bottom: 12px;
+    }
+    .agent-card h3 { margin-bottom: 10px; }
+    .agent-card p { color: #344054; line-height: 1.55; font-size: 14px; }
+    .agent-note {
+      padding: 12px;
+      border-radius: 10px;
+      background: #f8fafc;
+      color: #475467;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .footer-actions {
+      margin-top: 14px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .footer-actions button { padding: 10px 12px; }
+
+    @media (max-width: 1180px) {
+      .app { grid-template-columns: 300px 1fr; }
+      .agent { grid-column: 1 / -1; min-height: auto; }
+    }
+
+    @media (max-width: 760px) {
+      .app { grid-template-columns: 1fr; padding: 10px; }
+      .stepper, .summary-grid, .talk-grid, .mini-grid { grid-template-columns: 1fr; }
+      .content, .agent { min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <aside class="panel">
+      <div class="panel-head">
+        <div class="eyebrow">本周拜访任务</div>
+        <h1>客户拜访作战台</h1>
+        <p class="sub">把客户卡片从信息展示升级成推进任务，让销售知道下一步该做什么。</p>
+      </div>
+
+      <div class="task-list">
+        <section class="task-card">
+          <div class="task-top">
+            <span class="badge orange">A级</span>
+            <span class="badge green">商机进行中</span>
+          </div>
+          <div class="customer-title">深圳比亚迪电子有限公司</div>
+          <div class="meta">
+            <span class="badge orange">高层拜访</span>
+            <span class="badge green">合规推进</span>
+            <span class="badge gray">周五 14:00</span>
+          </div>
+          <div class="metric">
+            <div class="metric-row">
+              <span>客户健康度：健康</span>
+              <span>76/100</span>
+            </div>
+            <div class="bar"><span></span></div>
+          </div>
+
+          <div class="task-section">
+            <div class="label">本次目标</div>
+            <div class="value">推动客户从“报价值”进入“定商务”，明确报价、合同、审批与签约路径。</div>
+          </div>
+
+          <div class="mini-grid">
+            <div class="mini">
+              <div class="label">BAC</div>
+              <div class="value">确认定商务</div>
+            </div>
+            <div class="mini">
+              <div class="label">MAC</div>
+              <div class="value">拿到财务口径</div>
+            </div>
+          </div>
+
+          <div class="task-section">
+            <div class="label">最大风险</div>
+            <div class="value">继续被拉回补参数和单机比价，无法进入商务推进。</div>
+          </div>
+
+          <div class="actions">
+            <button class="primary" data-step="prep">进入会前准备</button>
+            <button data-step="field">生成现场打法</button>
+            <button data-step="review">拜访后复盘</button>
+          </div>
+        </section>
+      </div>
+    </aside>
+
+    <section class="panel content">
+      <div class="stepper">
+        <button class="step active" data-step="task">
+          <span class="num">1</span>
+          <strong>识别任务</strong>
+          <span>判断为什么拜访、推进到哪一步</span>
+        </button>
+        <button class="step" data-step="prep">
+          <span class="num">2</span>
+          <strong>会前准备</strong>
+          <span>检查资料、决策链和风险缺口</span>
+        </button>
+        <button class="step" data-step="field">
+          <span class="num">3</span>
+          <strong>现场推进</strong>
+          <span>开场、提问、价值表达和收官</span>
+        </button>
+        <button class="step" data-step="review">
+          <span class="num">4</span>
+          <strong>会后复盘</strong>
+          <span>判断是否合格并更新下一步</span>
+        </button>
+      </div>
+
+      <div class="workspace" id="workspace"></div>
+    </section>
+
+    <aside class="panel agent">
+      <div class="panel-head">
+        <div class="eyebrow">智能拜访 Agent</div>
+        <h2 id="agentTitle">任务判断助手</h2>
+        <p class="sub" id="agentSub">跟随当前步骤输出，不再一次性堆长文。</p>
+      </div>
+      <div class="agent-body" id="agentBody"></div>
+    </aside>
+  </main>
+
+  <script>
+    const data = {
+      task: {
+        title: "识别任务",
+        agentTitle: "任务判断助手",
+        agentSub: "先判断这次拜访的本质和胜负手。",
+        html: `
+          <div class="eyebrow">步骤 1 / 4</div>
+          <h2>任务判断：这次拜访不是补参数，而是推进定商务</h2>
+          <p class="sub">系统先帮助销售判断“为什么要拜访、拜访成功的标准是什么”，避免上门后只聊产品。</p>
+
+          <div class="summary-grid">
+            <div class="card tint-green">
+              <h3>今日判断</h3>
+              <p>比亚迪电子已过采购初评，本次重点是让高层认可国产装备的战略价值，并把项目从“报价值”推进到“定商务”。</p>
+            </div>
+            <div class="card tint-orange">
+              <h3>最大风险</h3>
+              <p>如果销售继续围绕技术参数和单机报价沟通，客户会重新进入比价和内部观望，商机推进会变慢。</p>
+            </div>
+            <div class="card tint-blue">
+              <h3>BAC</h3>
+              <p>客户确认进入定商务，明确报价口径、合同节点、审批链和签约路径。</p>
+            </div>
+            <div class="card">
+              <h3>MAC</h3>
+              <p>拿到定商务前必须补齐的 TCO/ROI 数据、财务口径、审批链和下一次商务沟通时间。</p>
+            </div>
+          </div>
+
+          <table class="table">
+            <thead><tr><th>角色</th><th>销售要判断什么</th><th>本次动作</th></tr></thead>
+            <tbody>
+              <tr><td>刘经理</td><td>能否成为进入商务的 Coach</td><td>请他确认审批链、报价口径和下一次商务会</td></tr>
+              <tr><td>制造/生产</td><td>是否认可稳定性、节拍和导入风险</td><td>用场景数据说明注塑取件价值</td></tr>
+              <tr><td>财务</td><td>是否认可 TCO/ROI 和回本逻辑</td><td>准备三年总拥有成本与回本周期</td></tr>
+              <tr><td>高层</td><td>是否认同国产替代和智能制造升级</td><td>从战略价值和供应稳定性切入</td></tr>
+            </tbody>
+          </table>
+        `,
+        agent: `
+          <div class="agent-card">
+            <h3>一句话判断</h3>
+            <p>这次拜访的胜负手不是“客户是否听懂方案”，而是“客户是否愿意把项目推进到商务动作”。</p>
+          </div>
+          <div class="agent-card">
+            <h3>推荐主线</h3>
+            <p>先用国产替代和智能制造升级定调，再用 TCO/ROI 降低投资阻力，最后收口到定商务路径。</p>
+          </div>
+          <div class="agent-note">依据：客户阶段、拜访卡片、POCC-P、BAC/MAC、财务与投资回报知识库。</div>
+        `
+      },
+      prep: {
+        title: "会前准备",
+        agentTitle: "会前风险检查助手",
+        agentSub: "检查当前准备是否足够支撑定商务推进。",
+        html: `
+          <div class="eyebrow">步骤 2 / 4</div>
+          <h2>会前准备：准备度 5 / 6</h2>
+          <p class="sub">这不是新人教学清单，而是重点商机的风险控制。没补齐的项会直接影响现场能否收口。</p>
+
+          <div class="checklist">
+            <div class="check"><span class="tick">✓</span><div><strong>本次目标已明确</strong><span>推进到定商务，而不是继续补参数</span></div><span class="badge green">完成</span></div>
+            <div class="check"><span class="tick">✓</span><div><strong>BAC / MAC 已明确</strong><span>BAC 定商务；MAC 拿齐财务口径和审批链</span></div><span class="badge green">完成</span></div>
+            <div class="check"><span class="tick">✓</span><div><strong>ROI/TCO 材料</strong><span>人工、节拍、维护、停机、回本周期</span></div><span class="badge green">完成</span></div>
+            <div class="check"><span class="tick">✓</span><div><strong>客户案例</strong><span>深圳比亚迪电子 CNC 上下料案例</span></div><span class="badge green">完成</span></div>
+            <div class="check"><span class="tick">✓</span><div><strong>竞品防守</strong><span>进口设备服务响应、备件周期、TCO 对比</span></div><span class="badge green">完成</span></div>
+            <div class="check"><span class="tick missing">!</span><div><strong>审批链确认</strong><span>还需刘经理确认财务与合同审批节点</span></div><span class="badge orange">待补</span></div>
+          </div>
+
+          <div class="footer-actions">
+            <button class="primary" data-step="field">准备完成，生成现场打法</button>
+            <button data-step="task">返回任务判断</button>
+          </div>
+        `,
+        agent: `
+          <div class="agent-card">
+            <h3>当前缺口</h3>
+            <p>最大的缺口不是技术参数，而是审批链和商务节点。拜访前应先请刘经理确认：谁看报价、谁审合同、财务按几年 TCO 评估。</p>
+          </div>
+          <div class="agent-card">
+            <h3>会前一句话</h3>
+            <p>“刘经理，我今天想把材料按进入定商务的标准准备好，所以需要提前确认贵司财务口径和审批链。”</p>
+          </div>
+          <div class="agent-note">依据：《高层拜访业务场景》会前准备、角色分工、财务 ROI 知识库。</div>
+        `
+      },
+      field: {
+        title: "现场推进",
+        agentTitle: "现场话术与推进助手",
+        agentSub: "把完整打法拆成现场可用卡片。",
+        html: `
+          <div class="eyebrow">步骤 3 / 4</div>
+          <h2>现场推进：按 POCC 推进到定商务</h2>
+          <p class="sub">资深销售可以看总览，小白销售也能直接拿话术卡使用。</p>
+
+          <div class="talk-grid">
+            <div class="talk-card">
+              <h3>30秒开场 <span class="copy">复制</span></h3>
+              <p>刘经理，今天我不想只补参数。这个项目如果要往前走，关键是让高层和财务看到国产替代、TCO/ROI、服务响应和回本逻辑是否成立。我们希望今天把进入定商务前需要确认的事项一次对齐。</p>
+            </div>
+            <div class="talk-card">
+              <h3>必问问题 <span class="copy">复制</span></h3>
+              <p>如果项目进入定商务，贵司内部通常先看报价口径、合同条款、财务 ROI，还是技术验证结论？谁会影响最后审批？</p>
+            </div>
+            <div class="talk-card">
+              <h3>价值表达 <span class="copy">复制</span></h3>
+              <p>这套注塑取件工作站不能只看单价，要看三年总拥有成本：人工、停机、维护、备件、良率和服务响应一起算。</p>
+            </div>
+            <div class="talk-card">
+              <h3>异议回应 <span class="copy">复制</span></h3>
+              <p>参数我们会补齐，但如果没有财务口径和审批路径，参数补完还是会回到比价。建议今天先把进入定商务的条件确认下来。</p>
+            </div>
+            <div class="talk-card">
+              <h3>BAC 收官 <span class="copy">复制</span></h3>
+              <p>如果今天价值和风险控制口径认可，能否请您帮忙推动进入定商务？我们下一步直接对齐报价、合同、审批节点和签约路径。</p>
+            </div>
+            <div class="talk-card">
+              <h3>MAC 收官 <span class="copy">复制</span></h3>
+              <p>如果今天还不能定商务，能否先请您明确还缺哪些 TCO/ROI 数据、财务口径、审批链信息，以及下一次商务沟通时间？</p>
+            </div>
+          </div>
+        `,
+        agent: `
+          <div class="agent-card">
+            <h3>现场主打法</h3>
+            <p>不要从产品参数开场。先确认客户是否愿意按商务推进看项目，再用 ROI/TCO 和服务响应支撑定商务。</p>
+          </div>
+          <div class="agent-card">
+            <h3>不要这样聊</h3>
+            <p>不要只问预算；不要让刘经理独自内部推动；不要把结果停在“再约一次评审”。本次底线是拿到定商务条件、路径和时间。</p>
+          </div>
+          <div class="agent-note">依据：POCC-O/C/C、BPIDC、N-SABE、LSCPA、BAC/MAC。</div>
+        `
+      },
+      review: {
+        title: "会后复盘",
+        agentTitle: "商机推进复盘助手",
+        agentSub: "判断拜访是否有效，并生成下一步动作。",
+        html: `
+          <div class="eyebrow">步骤 4 / 4</div>
+          <h2>会后复盘：判断是否推进商机</h2>
+          <p class="sub">复盘不是写流水账，而是判断这次拜访有没有推动阶段变化。</p>
+
+          <table class="table">
+            <thead><tr><th>复盘项</th><th>结果示例</th><th>系统判断</th></tr></thead>
+            <tbody>
+              <tr><td>是否拿到 BAC</td><td>客户同意进入定商务</td><td><span class="badge green">高质量拜访</span></td></tr>
+              <tr><td>是否拿到 MAC</td><td>拿到财务口径、审批链、下次商务时间</td><td><span class="badge green">合格拜访</span></td></tr>
+              <tr><td>是否需要资源</td><td>需要商务/技术/主管参加下次会议</td><td><span class="badge blue">资源介入</span></td></tr>
+              <tr><td>阶段建议</td><td>从“约高层”推进到“定商务”</td><td><span class="badge orange">建议更新</span></td></tr>
+            </tbody>
+          </table>
+
+          <div class="summary-grid">
+            <div class="card tint-green">
+              <h3>下一步任务</h3>
+              <ul>
+                <li>48小时内提交定商务版报价</li>
+                <li>补齐 TCO/ROI 测算表</li>
+                <li>约下次商务沟通会</li>
+              </ul>
+            </div>
+            <div class="card tint-blue">
+              <h3>自动沉淀</h3>
+              <ul>
+                <li>更新客户记忆</li>
+                <li>生成复盘纪要</li>
+                <li>更新商机阶段建议</li>
+              </ul>
+            </div>
+          </div>
+        `,
+        agent: `
+          <div class="agent-card">
+            <h3>合格标准</h3>
+            <p>至少拿到 MAC：财务口径、审批链、下一次商务沟通时间。否则这次拜访只算信息触达，不算有效推进。</p>
+          </div>
+          <div class="agent-card">
+            <h3>阶段建议</h3>
+            <p>如果客户确认报价口径和合同/审批节点，建议商机阶段从“约高层”更新为“定商务”。</p>
+          </div>
+          <div class="agent-note">依据：BAC/MAC 达成情况、商机阶段规则、客户拜访结果。</div>
+        `
+      }
+    };
+
+    const workspace = document.getElementById("workspace");
+    const agentTitle = document.getElementById("agentTitle");
+    const agentSub = document.getElementById("agentSub");
+    const agentBody = document.getElementById("agentBody");
+
+    function setStep(stepKey) {
+      const step = data[stepKey] || data.task;
+      workspace.innerHTML = step.html;
+      agentTitle.textContent = step.agentTitle;
+      agentSub.textContent = step.agentSub;
+      agentBody.innerHTML = step.agent;
+      document.querySelectorAll("[data-step]").forEach(el => {
+        if (el.classList.contains("step")) el.classList.toggle("active", el.dataset.step === stepKey);
+      });
+      workspace.querySelectorAll("[data-step]").forEach(el => {
+        el.addEventListener("click", () => setStep(el.dataset.step));
+      });
+    }
+
+    document.querySelectorAll("[data-step]").forEach(el => {
+      el.addEventListener("click", () => setStep(el.dataset.step));
+    });
+    setStep("task");
+  </script>
+</body>
+</html>

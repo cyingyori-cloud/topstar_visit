@@ -1,9 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, type ReactNode } from 'react';
 import { useAppStore } from '../stores/appStore';
 import { completedVisits, customers } from '../data/mockData';
 import { TIER_RULES } from '../data/skills';
 import CustomerBadge from './CustomerBadge';
-import { ClipboardList, ChevronDown, Plus, ChevronRight, Building2, MapPin, MoreHorizontal, Calendar, AlertTriangle, Target, Eye, X, Clock, CheckCircle2, UserRound, Users, Pencil } from 'lucide-react';
+import { ClipboardList, ChevronDown, Plus, Building2, MapPin, MoreHorizontal, Calendar, AlertTriangle, Target, Eye, X, Clock, CheckCircle2, UserRound, Users, Pencil } from 'lucide-react';
 import { getFullCompanyName } from '../utils/companyNames';
 
 const periods = ['本日', '本周', '本月'];
@@ -63,7 +63,7 @@ function getOverdueStatus(tier: 'S' | 'A' | 'B' | 'C', daysSince: number) {
   return { status: 'normal', label: '', color: '' };
 }
 
-export default function VisitTasks() {
+export default function VisitTasks({ highlightedTaskId }: { highlightedTaskId?: string | null }) {
   const { taskPeriod, setTaskPeriod, triggerCustomerContext, filteredTasks, setShowAddVisit, updateVisitTask } = useAppStore();
   const [showPeriodMenu, setShowPeriodMenu] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -88,13 +88,16 @@ export default function VisitTasks() {
     triggerCustomerContext(task.customerId, 'task', task);
   };
 
+  const handlePrepareClick = (task: typeof filteredTasks[0]) => {
+    triggerCustomerContext(task.customerId, 'prep', task);
+  };
+
   // Count overdue tasks
   const overdueCount = filteredTasks.filter(t => {
     const days = getDaysSinceLastVisit(t.customerId);
     const rule = TIER_RULES.find(r => r.tier === t.customerLevel);
     return rule && days > rule.overdueDays;
   }).length;
-
   return (
     <>
       {pendingConfirmTasks.length > 0 && (
@@ -147,10 +150,10 @@ export default function VisitTasks() {
 
         {!collapsed && (
           <div className="px-3 py-2 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-            <DaySection label="今天" count={todayTasks.length} color="#EF4444" tasks={todayTasks} onTaskClick={handleTaskClick} onDetailClick={setDetailTask} onEditClick={setEditTask} />
-            <DaySection label="明天" count={tomorrowTasks.length} color="#F59E0B" tasks={tomorrowTasks} onTaskClick={handleTaskClick} onDetailClick={setDetailTask} onEditClick={setEditTask} />
-            <DaySection label="周四" count={thursdayTasks.length} color="#8F959E" tasks={thursdayTasks} onTaskClick={handleTaskClick} onDetailClick={setDetailTask} onEditClick={setEditTask} />
-            <DaySection label="周五" count={fridayTasks.length} color="#8F959E" tasks={fridayTasks} onTaskClick={handleTaskClick} onDetailClick={setDetailTask} onEditClick={setEditTask} />
+            <DaySection label="今天" count={todayTasks.length} color="#EF4444" tasks={todayTasks} highlightedTaskId={highlightedTaskId} onTaskClick={handleTaskClick} onPrepareClick={handlePrepareClick} onDetailClick={setDetailTask} onEditClick={setEditTask} />
+            <DaySection label="明天" count={tomorrowTasks.length} color="#F59E0B" tasks={tomorrowTasks} highlightedTaskId={highlightedTaskId} onTaskClick={handleTaskClick} onPrepareClick={handlePrepareClick} onDetailClick={setDetailTask} onEditClick={setEditTask} />
+            <DaySection label="周四" count={thursdayTasks.length} color="#8F959E" tasks={thursdayTasks} highlightedTaskId={highlightedTaskId} onTaskClick={handleTaskClick} onPrepareClick={handlePrepareClick} onDetailClick={setDetailTask} onEditClick={setEditTask} />
+            <DaySection label="周五" count={fridayTasks.length} color="#8F959E" tasks={fridayTasks} highlightedTaskId={highlightedTaskId} onTaskClick={handleTaskClick} onPrepareClick={handlePrepareClick} onDetailClick={setDetailTask} onEditClick={setEditTask} />
 
             {activeTasks.length === 0 && filteredTasks.length > 0 && (
               <div className="rounded-xl border border-dashed px-4 py-8 text-center text-xs" style={{ borderColor: '#E5E7EB', color: '#8F959E', backgroundColor: '#FAFBFC' }}>
@@ -167,7 +170,7 @@ export default function VisitTasks() {
 
       <VisitDetailModal task={detailTask} onClose={() => setDetailTask(null)} onPrepare={() => {
         if (detailTask) {
-          handleTaskClick(detailTask);
+          handlePrepareClick(detailTask);
           setDetailTask(null);
         }
       }} />
@@ -350,8 +353,8 @@ function HistoryPopover({ customerId, customerName }: { customerId: string; cust
 }
 
 /* ---------- 每日任务分组 ---------- */
-function DaySection({ label, count, color, tasks, onTaskClick, onDetailClick, onEditClick }: {
-  label: string; count: number; color: string; tasks: any[]; onTaskClick: (task: any) => void; onDetailClick: (task: any) => void; onEditClick: (task: any) => void;
+function DaySection({ label, count, color, tasks, highlightedTaskId, onTaskClick, onPrepareClick, onDetailClick, onEditClick }: {
+  label: string; count: number; color: string; tasks: any[]; highlightedTaskId?: string | null; onTaskClick: (task: any) => void; onPrepareClick: (task: any) => void; onDetailClick: (task: any) => void; onEditClick: (task: any) => void;
 }) {
   if (tasks.length === 0) return null;
   return (
@@ -361,14 +364,24 @@ function DaySection({ label, count, color, tasks, onTaskClick, onDetailClick, on
         <span className="text-xs font-medium" style={{ color: '#1F2329' }}>{label} ({count})</span>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        {tasks.map((task: any) => <TaskCard key={task.id} task={task} onTaskClick={onTaskClick} onDetailClick={onDetailClick} onEditClick={onEditClick} />)}
+        {tasks.map((task: any) => (
+          <TaskCard
+            key={task.id}
+            task={task}
+            highlighted={task.id === highlightedTaskId}
+            onTaskClick={onTaskClick}
+            onPrepareClick={onPrepareClick}
+            onDetailClick={onDetailClick}
+            onEditClick={onEditClick}
+          />
+        ))}
       </div>
     </div>
   );
 }
 
 /* ---------- 单个任务卡片 ---------- */
-function TaskCard({ task, onTaskClick, onDetailClick, onEditClick }: { task: any; onTaskClick: (t: any) => void; onDetailClick: (t: any) => void; onEditClick: (t: any) => void; }) {
+function TaskCard({ task, highlighted, onTaskClick, onPrepareClick, onDetailClick, onEditClick }: { task: any; highlighted?: boolean; onTaskClick: (t: any) => void; onPrepareClick: (t: any) => void; onDetailClick: (t: any) => void; onEditClick: (t: any) => void; }) {
   const [showHistory, setShowHistory] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -388,11 +401,6 @@ function TaskCard({ task, onTaskClick, onDetailClick, onEditClick }: { task: any
     task.customerLevel === 'A' ? '#EA580C' :
     task.customerLevel === 'B' ? '#16A34A' :
     '#9CA3AF';
-  const commitmentTone =
-    task.customerLevel === 'S' ? '争取高层确认与评审' :
-    task.customerLevel === 'A' ? '推动方案进入下一步' :
-    task.customerLevel === 'B' ? '建立关系并验证需求' :
-    '激活信号并重新接触';
   const hasOpportunity = task.opportunityIntent !== 'no_opportunity';
   const health = getHealthMeta(task.healthScore ?? 70, task.healthTrend ?? 'flat');
   const opportunityCount = hasOpportunity && customer ? 1 : 0;
@@ -400,22 +408,32 @@ function TaskCard({ task, onTaskClick, onDetailClick, onEditClick }: { task: any
   const opportunityStage = hasOpportunity ? (customer?.opportunityStage || '待确认') : '机会识别';
   const opportunityProgress = hasOpportunity && customer ? `${customer.opportunityPercent}%` : '待识别';
   const opportunityAmount = hasOpportunity && customer ? `¥${customer.opportunityAmount}万` : '-';
-  const stageText = getOpportunityStageText(customer, hasOpportunity, task);
+  const overviewSignal =
+    task.customerId === 'c4'
+      ? '来自作战总览推荐：本次重点是高层评审后收口定商务，现场要把TCO/ROI、报价、合同和审批链问清。'
+      : `来自作战总览推荐：${hasOpportunity ? `当前处于${opportunityStage}，本次要推动客户给出明确下一步。` : '当前重点是验证真实需求和关键人意愿。'}`;
 
   const handleMouseEnter = () => { if (hideTimer.current) clearTimeout(hideTimer.current); setShowHistory(true); };
   const handleMouseLeave = () => { hideTimer.current = setTimeout(() => setShowHistory(false), 200); };
 
   return (
     <div
+      id={`visit-task-${task.id}`}
       className="group relative rounded-xl cursor-pointer transition-all duration-200 hover:shadow-lg border overflow-hidden"
       style={{
-        backgroundColor: '#FFFFFF',
-        borderColor: overdue.status !== 'normal' ? overdue.color : `${cardBorder}55`,
-        borderWidth: '1px',
-        boxShadow: '0 12px 30px rgba(15,23,42,0.06)',
+        backgroundColor: highlighted ? '#F8FBFF' : '#FFFFFF',
+        borderColor: highlighted ? '#1F5F99' : (overdue.status !== 'normal' ? overdue.color : `${cardBorder}55`),
+        borderWidth: highlighted ? '2px' : '1px',
+        boxShadow: highlighted ? '0 0 0 4px rgba(31,95,153,0.12), 0 18px 36px rgba(15,23,42,0.10)' : '0 12px 30px rgba(15,23,42,0.06)',
       }}
       onClick={() => onTaskClick(task)}
     >
+      {highlighted && (
+        <div className="px-3 py-2 flex items-center gap-2 border-b" style={{ backgroundColor: '#EAF3FF', borderColor: '#C7D7EA', color: '#1F5F99' }}>
+          <Target className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="text-xs font-medium leading-relaxed">{overviewSignal}</span>
+        </div>
+      )}
       <div className="px-3 py-3 border-b" style={{ borderColor: `${cardBorder}28`, background: `linear-gradient(135deg, ${cardBorder}12, #FFFFFF 74%)` }}>
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start gap-2 min-w-0">
@@ -523,28 +541,16 @@ function TaskCard({ task, onTaskClick, onDetailClick, onEditClick }: { task: any
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          {/* 左下：推荐拜访原因 */}
-          <div className="rounded-lg px-2.5 py-2" style={{ backgroundColor: `${cardBorder}0D`, border: `1px solid ${cardBorder}24` }}>
-            <div className="flex items-center gap-1.5 mb-1">
-              <span className="text-xs font-semibold" style={{ color: cardBorder }}>推荐拜访原因</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: '#FFF', color: cardBorder }}>AI建议</span>
-            </div>
-            <div className="text-xs leading-relaxed" style={{ color: '#1F2329' }}>
-              {task.visitGoal}
-            </div>
+        <div
+          className="rounded-lg px-3 py-2 border"
+          style={{ backgroundColor: `${cardBorder}0D`, borderColor: `${cardBorder}24` }}
+        >
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="text-xs font-semibold" style={{ color: cardBorder }}>拜访目标</span>
           </div>
-
-          {hasOpportunity && stageText ? (
-            <div className="rounded-lg px-2.5 py-2 border" style={{ backgroundColor: '#FAFBFC', borderColor: '#D7DEE8' }}>
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className="text-xs font-semibold" style={{ color: '#475569' }}>{stageText.title}</span>
-              </div>
-              <div className="text-xs leading-relaxed" style={{ color: '#4B5563' }}>
-                {stageText.detail}
-              </div>
-            </div>
-          ) : null}
+          <div className="text-xs leading-relaxed" style={{ color: '#1F2329' }}>
+            {task.detailObjective || task.visitGoal || '确认客户当前需求、关键参与人、下一步推进节点和可落地承诺。'}
+          </div>
         </div>
 
         <div className="flex items-center justify-between gap-3 pt-1 border-t border-gray-100">
@@ -596,10 +602,10 @@ function TaskCard({ task, onTaskClick, onDetailClick, onEditClick }: { task: any
               style={{ backgroundColor: '#F3F4F6', color: '#475569' }}
               onClick={(e) => {
                 e.stopPropagation();
-                onTaskClick(task);
+                onPrepareClick(task);
               }}
             >
-              AI助手
+              会前准备
             </button>
           </div>
         </div>
@@ -621,7 +627,7 @@ function VisitDetailModal({ task, onClose, onPrepare }: { task: any; onClose: ()
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.35)' }} onClick={onClose}>
       <div
-        className="w-[620px] bg-white rounded-2xl shadow-2xl overflow-hidden"
+        className="w-[860px] max-w-[92vw] bg-white rounded-2xl shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -640,12 +646,31 @@ function VisitDetailModal({ task, onClose, onPrepare }: { task: any; onClose: ()
           </button>
         </div>
 
-        <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
-          <div className="grid grid-cols-2 gap-3 text-sm">
+        <div className="px-5 py-4 space-y-4 max-h-[76vh] overflow-y-auto">
+          <div className="grid grid-cols-4 gap-3 text-sm">
             <DetailItem label="拜访主题" value={task.visitPurpose} />
             <DetailItem label="拜访对象" value={contactsText} />
             <DetailItem label="拜访地点" value={task.location} />
             <DetailItem label="历史拜访" value={`${customer?.visitCount || 0}次历史拜访 · 上次：${task.lastVisitDate || '暂无'}`} />
+          </div>
+
+          <div className="grid grid-cols-[1.1fr_0.9fr] gap-3">
+            <div className="rounded-xl px-4 py-3 border" style={{ backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }}>
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <div className="text-sm font-semibold" style={{ color: '#1D4ED8' }}>本次拜访一句话判断</div>
+                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: '#FFFFFF', color: '#1D4ED8' }}>{opportunityStage}</span>
+              </div>
+              <div className="text-sm leading-relaxed" style={{ color: '#1E293B' }}>
+                {task.detailSummary || task.visitGoal}
+              </div>
+            </div>
+
+            <div className="rounded-xl px-4 py-3 border" style={{ backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }}>
+              <div className="text-sm font-semibold mb-2" style={{ color: '#15803D' }}>本次必须拿到</div>
+              <div className="text-sm leading-relaxed" style={{ color: '#1E293B' }}>
+                {task.detailObjective || task.expectedCommitment}
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -676,6 +701,72 @@ function VisitDetailModal({ task, onClose, onPrepare }: { task: any; onClose: ()
             <DetailBlock title="推荐拜访原因" content={task.visitGoal} tone="reason" />
             <DetailBlock title={hasOpportunity ? '推进重点' : '线索目标'} content={hasOpportunity ? (task.expectedCommitment || task.visitFocus) : (task.visitFocus || '建立关系、摸清产线痛点与潜在切入口。')} tone="focus" />
           </div>
+
+          {task.decisionChain?.length ? (
+            <DetailSection title="决策链与本次动作">
+              <div className="overflow-hidden rounded-xl border" style={{ borderColor: '#E2E8F0' }}>
+                <div className="grid grid-cols-[0.8fr_1fr_1.2fr_1.6fr] text-xs font-semibold" style={{ backgroundColor: '#F8FAFC', color: '#475569' }}>
+                  <div className="px-3 py-2 border-r border-slate-200">角色</div>
+                  <div className="px-3 py-2 border-r border-slate-200">对象</div>
+                  <div className="px-3 py-2 border-r border-slate-200">当前状态</div>
+                  <div className="px-3 py-2">销售动作</div>
+                </div>
+                {task.decisionChain.map((item: any, index: number) => (
+                  <div key={`${item.role}-${index}`} className="grid grid-cols-[0.8fr_1fr_1.2fr_1.6fr] text-sm border-t" style={{ borderColor: '#E2E8F0', color: '#334155' }}>
+                    <div className="px-3 py-2 font-semibold border-r border-slate-100" style={{ color: '#1F2329' }}>{item.role}</div>
+                    <div className="px-3 py-2 border-r border-slate-100">{item.person}</div>
+                    <div className="px-3 py-2 border-r border-slate-100">{item.status}</div>
+                    <div className="px-3 py-2 leading-relaxed">{item.action}</div>
+                  </div>
+                ))}
+              </div>
+            </DetailSection>
+          ) : null}
+
+          {task.keyIssues?.length ? (
+            <DetailSection title="客户高层可能关注什么">
+              <div className="grid grid-cols-2 gap-3">
+                {task.keyIssues.map((item: any, index: number) => (
+                  <div key={`${item.issue}-${index}`} className="rounded-xl px-3 py-3 border" style={{ backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }}>
+                    <div className="text-sm font-semibold mb-1.5" style={{ color: '#92400E' }}>{item.issue}</div>
+                    <div className="text-sm leading-relaxed" style={{ color: '#334155' }}>{item.salesAngle}</div>
+                  </div>
+                ))}
+              </div>
+            </DetailSection>
+          ) : null}
+
+          {task.prepMaterials?.length ? (
+            <DetailSection title="会前资料清单">
+              <div className="grid grid-cols-2 gap-2">
+                {task.prepMaterials.map((item: string, index: number) => (
+                  <div key={`${item}-${index}`} className="flex items-start gap-2 rounded-lg px-3 py-2 border" style={{ backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' }}>
+                    <span className="mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-semibold flex-shrink-0" style={{ backgroundColor: '#DBEAFE', color: '#1D4ED8' }}>{index + 1}</span>
+                    <span className="text-sm leading-relaxed" style={{ color: '#334155' }}>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </DetailSection>
+          ) : null}
+
+          {task.meetingFlow?.length ? (
+            <DetailSection title="现场推进节奏">
+              <div className="grid grid-cols-4 gap-2">
+                {task.meetingFlow.map((item: any, index: number) => (
+                  <div key={`${item.step}-${index}`} className="rounded-xl px-3 py-3 border" style={{ backgroundColor: '#FFFFFF', borderColor: '#D7DEE8' }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold" style={{ backgroundColor: '#EEF2FF', color: '#4338CA' }}>{index + 1}</span>
+                      <span className="text-sm font-semibold" style={{ color: '#1F2329' }}>{item.step}</span>
+                    </div>
+                    <div className="text-sm leading-relaxed mb-2" style={{ color: '#334155' }}>{item.action}</div>
+                    <div className="text-xs leading-relaxed rounded-lg px-2 py-1.5" style={{ backgroundColor: '#ECFDF5', color: '#047857' }}>
+                      信号：{item.desiredSignal}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </DetailSection>
+          ) : null}
 
           <DetailBlock title="上次拜访情况" content={task.lastVisitSummary || '暂无历史摘要'} />
         </div>
@@ -1001,6 +1092,15 @@ function DetailBlock({ title, content, tone = 'default' }: { title: string; cont
       <div className="text-sm leading-relaxed px-3 py-3 rounded-lg border" style={{ backgroundColor: styles.bg, borderColor: styles.border, color: '#475569' }}>
         {content}
       </div>
+    </div>
+  );
+}
+
+function DetailSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div>
+      <div className="text-sm font-semibold mb-2" style={{ color: '#1F2329' }}>{title}</div>
+      {children}
     </div>
   );
 }

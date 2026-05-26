@@ -7,7 +7,7 @@ const modules = import.meta.glob('../../knowledge/*.md', {
 }) as Record<string, string>;
 
 const CATEGORY_RULES: Array<{ category: KnowledgeItem['category']; keywords: string[] }> = [
-  { category: '拜访话术', keywords: ['销售软技能', '话术', '拜访', '沟通'] },
+  { category: '拜访话术', keywords: ['销售软技能', '话术', '拜访', '沟通', '高层拜访'] },
   { category: '竞品对比', keywords: ['竞品', '行业格局'] },
   { category: '成功案例', keywords: ['应用场景', '案例', '客户生产工艺'] },
   { category: '行业方案', keywords: ['产品', '底层技术', '战略', '市场', '洞察', '项目管理', '补贴', '财务', '投资回报'] },
@@ -44,6 +44,7 @@ function extractTags(title: string, content: string) {
   const seed = [
     ...title.split(/[\s_-]+/),
     ...INDUSTRY_KEYWORDS.filter(keyword => content.includes(keyword)),
+    ...(title.includes('高层拜访') ? ['高层拜访', '约高层', 'POCC', 'BAC/MAC', 'ROI', 'TCO', '政策补贴', '竞品防守'] : []),
   ];
   return [...new Set(seed.map(item => item.trim()).filter(Boolean))].slice(0, 8);
 }

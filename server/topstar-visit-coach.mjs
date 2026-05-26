@@ -98,16 +98,18 @@ const RUNTIME_COLLECTION_GUIDE = [
 ];
 
 const MODE_OUTPUT_GUIDE = {
-  Full_Preparation: [
-    "输出为销售拜访作战单，标题为“[客户名称]拜访打法”。",
-    "开头必须先给 3 条重点判断：这次拜访打什么、客户最可能卡在哪里、要拿什么承诺。",
-    "主体固定包含：BAC/MAC、30秒开场话术、必问三问、价值/ROI/竞品切入、收官话术。",
-    "必须写明用到哪类知识库，例如工艺痛点、产品优势、财务ROI、竞品防守或销售软技能。",
-  ],
-  Quick_Brief: [
-    "控制在 800 字内。",
-    "只输出：目标、30 秒开场、必问 3 问、核心价值点、预判顾虑、收官。",
-  ],
+	  Full_Preparation: [
+	    "输出为销售拜访作战单，标题为“[客户名称]拜访打法”。",
+	    "必须严格按照 POCC 四段式输出：重点速览、P（Prepare｜规划与准备）、O（Open｜高层开场）、C（Consult｜咨询与共创）、C（Close｜承诺闭环）、依据。",
+	    "P/O/C/C 必须作为一级标题出现，不要把 POCC 只写成标签或散落在表格中。",
+	    "每个阶段必须包含目标、动作、话术和知识库依据。",
+	    "必须写明用到哪类知识库，例如工艺痛点、产品优势、财务ROI、竞品防守或销售软技能。",
+	  ],
+	  Quick_Brief: [
+	    "控制在 800 字内。",
+	    "即使是精简版，也必须按 POCC 四段式输出：重点速览、P（Prepare）、O（Open）、C（Consult）、C（Close）。",
+	    "禁止使用旧结构：目标、30秒开场、必问3问、核心价值点、预判顾虑、收官。",
+	  ],
   Instant_Lookup: [
     "控制在 300 字内。",
     "只回答单一主题，给直接答案、3 个关键点和一段可复制话术。",
@@ -242,9 +244,9 @@ export function buildVisitCoachAddon(message, context) {
     Manager: "当前用户按 Manager 处理：从团队赋能和培训视角输出，支持批量和可复用模板。",
   };
 
-  const modeDirectives = {
-    Full_Preparation: "当前输出模式为 Full_Preparation：使用完整 Markdown 结构，覆盖完整 POCC 四阶段。",
-    Quick_Brief: "当前输出模式为 Quick_Brief：控制在 800 字内，给 BAC/MAC、TOP3 提问、开场话术、核心价值点和收官。",
+	  const modeDirectives = {
+	    Full_Preparation: "当前输出模式为 Full_Preparation：使用完整 Markdown 结构，覆盖完整 POCC 四阶段。",
+	    Quick_Brief: "当前输出模式为 Quick_Brief：控制在 800 字内，但仍必须使用 POCC 四段式，不得退回目标/30秒开场/必问3问旧模板。",
     Instant_Lookup: "当前输出模式为 Instant_Lookup：控制在 300 字内，直接回答一个主题，给关键点和可复制话术。",
     Post_Review: "当前输出模式为 Post_Review：使用结构化复盘模板，覆盖目标达成、过程回顾、意外情况、改进建议和跟进计划。",
     Team_Drill: "当前输出模式为 Team_Drill：你要进入蓝军演练模式，扮演客户角色，制造真实商业障碍，并在用户结束时给逐轮点评。",
@@ -316,15 +318,28 @@ export async function buildVisitCoachRuntimeGuideWithSkill(message, context) {
 
   return {
     ...guide,
-    prompt: [
-      guide.prompt,
-      skillText
-        ? [
-            "",
-            "以下为项目内置 topstar-visit-coach/SKILL.md 原文，请严格按其中的 SABC 分层、POCC、赢单五步法、BPIDC、N-SABE、LSCPA、BAC/MAC 输出。",
-            skillText.slice(0, 30000),
-          ].join("\n")
-        : "",
-    ].filter(Boolean).join("\n"),
-  };
-}
+	    prompt: [
+	      guide.prompt,
+	      skillText
+	        ? [
+	            "",
+	            "以下为项目内置 topstar-visit-coach/SKILL.md 原文，请严格按其中的 SABC 分层、POCC、赢单五步法、BPIDC、N-SABE、LSCPA、BAC/MAC 输出。",
+	            skillText.slice(0, 30000),
+	          ].join("\n")
+	        : "",
+	      [
+	        "",
+	        "【最高优先级输出覆盖规则】",
+	        "如果用户请求拜访准备、拜访打法、客户卡片推荐、话术生成，必须严格使用以下一级标题且顺序不可变：",
+	        "## 重点速览",
+	        "## P（Prepare｜规划与准备）",
+	        "## O（Open｜高层开场）",
+	        "## C（Consult｜咨询与共创）",
+	        "## C（Close｜承诺闭环）",
+	        "## 依据",
+	        "禁止使用旧 Quick_Brief 标题或相似标题：## 目标、## 30秒开场、## 开场（30秒）、## 必问3问、## 核心价值点、## 预判顾虑、## 收官。",
+	        "如果 SKILL.md 原文中的 Quick_Brief 输出格式与本覆盖规则冲突，以本覆盖规则为准。",
+	      ].join("\n"),
+	    ].filter(Boolean).join("\n"),
+	  };
+	}
