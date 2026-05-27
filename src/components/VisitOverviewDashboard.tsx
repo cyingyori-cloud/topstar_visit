@@ -79,7 +79,7 @@ function getRankingReasons(task: any, customer?: any) {
 }
 
 export default function VisitOverviewDashboard({ onViewTask }: { onViewTask?: (taskId: string) => void }) {
-  const { filteredTasks, triggerCustomerContext, isTyping, selectedCustomerId } = useAppStore();
+  const { filteredTasks, filteredCompletedVisits, triggerCustomerContext, isTyping, selectedCustomerId } = useAppStore();
   const [watchTab, setWatchTab] = useState<'all' | 'win' | 'cultivate'>('all');
   const [actionFeedback, setActionFeedback] = useState<{ taskId: string; action: 'view' | 'prep' | 'tactic'; text: string } | null>(null);
   const activeTasks = filteredTasks.filter(t => t.confirmationStatus !== 'pending_confirmation');
@@ -95,6 +95,14 @@ export default function VisitOverviewDashboard({ onViewTask }: { onViewTask?: (t
   const cultivateCount = enrichedTasks.filter(item => item.mode === 'cultivate').length;
   const readyCount = activeTasks.filter(t => getPrepScore(t) >= 4).length;
   const readiness = Math.round((readyCount / Math.max(1, activeTasks.length)) * 100);
+  const thisMonthCompleted = filteredCompletedVisits.filter(visit => visit.visitDate.startsWith('2026-05'));
+  const monthCompletedCustomerIds = new Set(thisMonthCompleted.map(visit => visit.customerId));
+  const monthlyVisitStats = {
+    monthPlan: activeTasks.length,
+    weekPlan: activeTasks.filter(task => ['今天', '明天', '周四', '周五', '周六', '周日'].includes(task.dayLabel)).length,
+    monthCompleted: monthCompletedCustomerIds.size,
+    monthPending: Math.max(0, activeTasks.length - monthCompletedCustomerIds.size),
+  };
   const priorityCount = Math.max(1, enrichedTasks.filter(item => item.score >= 60).length);
   const winReserve = customers.filter(c => ['S', 'A'].includes(c.level) && c.opportunityPercent >= 50).length;
   const activeOpportunityCount = customers.filter(c => c.opportunityPercent > 0 && c.opportunityStage !== '休眠').length;
@@ -312,6 +320,15 @@ export default function VisitOverviewDashboard({ onViewTask }: { onViewTask?: (t
             </div>
           </Panel>
 
+          <div className="rounded-xl border bg-white p-3" style={{ borderColor: '#DDE6F0' }}>
+            <div className="grid grid-cols-4 gap-2">
+              <VisitStat label="本月计划拜访数" value={monthlyVisitStats.monthPlan} tone="blue" />
+              <VisitStat label="本周计划拜访数" value={monthlyVisitStats.weekPlan} tone="green" />
+              <VisitStat label="本月已拜访数" value={monthlyVisitStats.monthCompleted} tone="slate" />
+              <VisitStat label="本月未拜访数" value={monthlyVisitStats.monthPending} tone="orange" />
+            </div>
+          </div>
+
           <Panel title="商机阶段分布" action="看哪里卡住">
             <div className="space-y-2">
               {funnelRows.map(row => (
@@ -376,6 +393,21 @@ function MetricCard({ icon, label, value, suffix, hint, tone }: { icon: ReactNod
         {suffix ? <span className="text-xs" style={{ color: '#667085' }}>{suffix}</span> : null}
       </div>
       <div className="text-[11px] mt-0.5 truncate" style={{ color: '#667085' }}>{hint}</div>
+    </div>
+  );
+}
+
+function VisitStat({ label, value, tone }: { label: string; value: number; tone: 'blue' | 'green' | 'orange' | 'slate' }) {
+  const palette = {
+    blue: { bg: '#EFF6FF', color: '#1F5F99' },
+    green: { bg: '#ECFDF5', color: '#087A55' },
+    orange: { bg: '#FFF7ED', color: '#B45309' },
+    slate: { bg: '#F8FAFC', color: '#475569' },
+  }[tone];
+  return (
+    <div className="rounded-lg px-2.5 py-2" style={{ backgroundColor: palette.bg }}>
+      <div className="text-[10px] leading-tight" style={{ color: '#667085' }}>{label}</div>
+      <div className="mt-1 text-xl font-semibold" style={{ color: palette.color }}>{value}</div>
     </div>
   );
 }
