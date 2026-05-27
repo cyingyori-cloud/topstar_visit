@@ -96,12 +96,12 @@ export default function VisitOverviewDashboard({ onViewTask }: { onViewTask?: (t
   const readyCount = activeTasks.filter(t => getPrepScore(t) >= 4).length;
   const readiness = Math.round((readyCount / Math.max(1, activeTasks.length)) * 100);
   const thisMonthCompleted = filteredCompletedVisits.filter(visit => visit.visitDate.startsWith('2026-05'));
-  const monthCompletedCustomerIds = new Set(thisMonthCompleted.map(visit => visit.customerId));
+  const remainingPlannedVisits = activeTasks.length;
   const monthlyVisitStats = {
-    monthPlan: activeTasks.length,
+    monthPlan: thisMonthCompleted.length + remainingPlannedVisits,
     weekPlan: activeTasks.filter(task => ['今天', '明天', '周四', '周五', '周六', '周日'].includes(task.dayLabel)).length,
-    monthCompleted: monthCompletedCustomerIds.size,
-    monthPending: Math.max(0, activeTasks.length - monthCompletedCustomerIds.size),
+    monthCompleted: thisMonthCompleted.length,
+    monthPending: remainingPlannedVisits,
   };
   const priorityCount = Math.max(1, enrichedTasks.filter(item => item.score >= 60).length);
   const winReserve = customers.filter(c => ['S', 'A'].includes(c.level) && c.opportunityPercent >= 50).length;
@@ -323,9 +323,9 @@ export default function VisitOverviewDashboard({ onViewTask }: { onViewTask?: (t
           <div className="rounded-xl border bg-white p-3" style={{ borderColor: '#DDE6F0' }}>
             <div className="grid grid-cols-4 gap-2">
               <VisitStat label="本月计划拜访数" value={monthlyVisitStats.monthPlan} tone="blue" />
-              <VisitStat label="本周计划拜访数" value={monthlyVisitStats.weekPlan} tone="green" />
               <VisitStat label="本月已拜访数" value={monthlyVisitStats.monthCompleted} tone="slate" />
               <VisitStat label="本月未拜访数" value={monthlyVisitStats.monthPending} tone="orange" />
+              <VisitStat label="本周计划拜访数" value={monthlyVisitStats.weekPlan} tone="green" />
             </div>
           </div>
 
